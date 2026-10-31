@@ -183,7 +183,7 @@ main { max-width: 760px; margin: 0 auto; padding: 16px; }
 /* ── Cómo funciona (inicio) y pasos (al escanear) ── */
 /* ── Cómo funciona ──
  * En escalera: cada paso va abajo del anterior y un escalón más a la derecha. Entre paso y paso, una línea
- * ondulada punteada que baja del centro de un círculo al centro del siguiente. app.js (armarGuia) pone las
+ * ondulada que baja del centro de un círculo al centro del siguiente. app.js (armarGuia) pone las
  * líneas y le dice a cada paso en qué escalón está (--i) y cuántos son (--n).
  * --escalon: cuánto se corre a la derecha cada paso (más grande = escalera más inclinada).
  * --circulo: tamaño de los círculos.
@@ -209,11 +209,7 @@ main { max-width: 760px; margin: 0 auto; padding: 16px; }
     width: var(--escalon);
 }
 .guia .onda svg { width: 100%; height: 100%; display: block; overflow: visible; }
-.guia .onda path { fill: none; stroke: var(--rojo); stroke-width: 2.5; stroke-dasharray: 2 7; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-@media (prefers-reduced-motion: no-preference) {
-    .guia .onda path { animation: avanzar 1.6s linear 3; }
-}
-@keyframes avanzar { to { stroke-dashoffset: -18; } }
+.guia .onda path { fill: none; stroke: var(--rojo); stroke-width: 2.5; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 
 .pasos { list-style: none; margin: 0 0 18px; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); }
 .pasos li { display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; font-size: .8rem; font-weight: 700; color: var(--grafito); }
