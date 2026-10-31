@@ -13,6 +13,7 @@ Escáner de documentos **gratis, sin publicidad y sin cuenta**. Le sacás foto a
 - PDF con el texto reconocido (OCR en español) invisible encima de la imagen
 - Compartir directo (WhatsApp, mail, Drive…) o descargar
 - **Herramientas PDF**: unir varios PDF, eliminar páginas, girarlas y reordenarlas, y crear un PDF desde fotos. Las páginas se copian tal cual: el texto y la calidad no cambian
+- **Texto de un PDF**: «PDF a texto» saca el texto para copiarlo o compartirlo, y «Hacer buscable» le agrega el texto invisible a un PDF escaneado. pdf-inspector lee el texto que ya trae el PDF y las páginas que son fotos se reconocen con Tesseract
 - **Mis documentos**: los PDF que hacés quedan guardados en el celular para verlos, compartirlos, renombrarlos, editarlos o borrarlos
 - Inicio con todo a mano y pasos guiados: tomá la foto, ajustá, guardá en PDF, ¡listo!
 - Se instala como app y anda sin internet

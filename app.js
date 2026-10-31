@@ -556,11 +556,17 @@ function abrirPdf() {
     actualizarPasos();
 }
 
-// Las palabras que reconoció Tesseract, invisibles, en el mismo lugar que en la imagen
+// Las palabras que reconoció Tesseract, invisibles, en el mismo lugar que en la imagen.
+// `aPdf(x, y)` pasa un punto de la imagen a coordenadas de la página del PDF.
 function capaDeTexto(pagina, fuente, letras, bloques, escala, altoPagina) {
+    return capaDeTextoEn(pagina, fuente, letras, bloques, (x, y) => [x * escala, altoPagina - y * escala]);
+}
+
+function capaDeTextoEn(pagina, fuente, letras, bloques, aPdf) {
     const P = PDFLib;
     const clave = pagina.node.newFontDictionary(fuente.name, fuente.ref);
     const ops = [];
+    let palabras = 0;
     for (const bloque of bloques || []) {
         for (const parrafo of bloque.paragraphs || []) {
             for (const linea of parrafo.lines || []) {
@@ -568,25 +574,30 @@ function capaDeTexto(pagina, fuente, letras, bloques, escala, altoPagina) {
                     const texto = [...(palabra.text || '')].filter((ch) => letras.has(ch.codePointAt(0))).join('');
                     if (!texto.trim()) continue;
                     const { x0, y0, x1, y1 } = palabra.bbox;
-                    const ancho = (x1 - x0) * escala, alto = Math.max(1, (y1 - y0) * escala);
+                    // Abajo a la izquierda, abajo a la derecha y arriba a la izquierda de la palabra, ya en el PDF:
+                    // así sirve también para páginas giradas
+                    const [ax, ay] = aPdf(x0, y1), [bx, by] = aPdf(x1, y1), [cx, cy] = aPdf(x0, y0);
+                    const ancho = Math.hypot(bx - ax, by - ay), alto = Math.max(1, Math.hypot(cx - ax, cy - ay));
                     const anchoTexto = fuente.widthOfTextAtSize(texto, alto);
                     if (!anchoTexto || ancho <= 0) continue;
+                    const cos = (bx - ax) / ancho, sen = (by - ay) / ancho;
                     // Altura de la letra = alto de la palabra; se estira a lo ancho para ocupar lo mismo que en la foto
                     ops.push(
                         P.beginText(),
                         P.setFontAndSize(clave, alto),
                         P.setTextRenderingMode(P.TextRenderingMode.Invisible),
                         P.setCharacterSqueeze(Math.max(1, Math.min(1000, (ancho / anchoTexto) * 100))),
-                        P.moveText(x0 * escala, altoPagina - y1 * escala + alto * 0.2),
+                        P.setTextMatrix(cos, sen, -sen, cos, ax - sen * alto * 0.2, ay + cos * alto * 0.2),
                         P.showText(fuente.encodeText(`${texto} `)),
                         P.endText(),
                     );
+                    palabras++;
                 }
             }
         }
     }
     if (ops.length) pagina.pushOperators(P.pushGraphicsState(), ...ops, P.popGraphicsState());
-    return ops.length / 7;
+    return palabras;
 }
 
 async function crearPdf(ev) {
@@ -712,7 +723,7 @@ function cargarPdfjs() {
 // ── Pantallas: inicio, escanear, herramientas PDF y mis documentos ──
 // Cada una tiene su dirección (#escanear, #pdf, #documentos): así el botón «atrás» del celular vuelve al inicio.
 
-const VISTAS = { inicio: 'vistaInicio', escanear: 'vistaEscaner', pdf: 'vistaPdf', documentos: 'vistaDocs' };
+const VISTAS = { inicio: 'vistaInicio', escanear: 'vistaEscaner', pdf: 'vistaPdf', texto: 'vistaTexto', documentos: 'vistaDocs' };
 let desdeInicio = false;   // si se llegó desde el inicio, «volver» es ir para atrás en el historial
 
 const vistaDeDireccion = () => (VISTAS[location.hash.slice(1)] ? location.hash.slice(1) : 'inicio');
@@ -736,6 +747,7 @@ function mostrarVista(nueva) {
     pintar();
     pintarPaginas();
     if (modo === 'pdf') cargarPdfjs().catch(() => {});
+    if (modo === 'texto' && cambia && !textoTarea) prepararTexto(textoModo);
     if (modo === 'inicio' || modo === 'documentos') pintarDocumentos();
 }
 
@@ -890,6 +902,253 @@ async function borrarDoc(d) {
     await db.borrarDocumento(d.id);
     cerrarDoc();
     pintarDocumentos();
+}
+
+// ── Texto de un PDF: «PDF a texto» y «Hacer buscable un PDF escaneado» ──
+// pdf-inspector (Firecrawl, MIT) lee el texto que el PDF ya trae y dice qué páginas son solo imágenes;
+// esas páginas se dibujan con pdf.js y las lee Tesseract, igual que en el escáner.
+
+let inspectorListo = null;
+function cargarInspector() {
+    if (!inspectorListo) {
+        inspectorListo = import('./vendor/pdf-inspector/pdf_inspector_wasm.js').then(async (m) => {
+            await m.default({ module_or_path: new URL('vendor/pdf-inspector/pdf_inspector_wasm_bg.wasm', location.href) });
+            return m;
+        });
+        inspectorListo.catch(() => { inspectorListo = null; });
+    }
+    return inspectorListo;
+}
+
+const TEXTOS = {
+    texto: {
+        titulo: 'PDF a texto',
+        descripcion: 'Elegí un PDF y te muestro su texto, listo para copiar o mandar por mensaje. No se sube a ningún lado.',
+    },
+    buscable: {
+        titulo: 'Hacer buscable un PDF escaneado',
+        descripcion: 'Elegí un PDF que sea solo fotos (como los de un escáner): le agrego el texto invisible para que se pueda buscar y copiar. El PDF se ve igual.',
+    },
+};
+const TIPOS_PDF = {
+    TextBased: 'PDF con texto',
+    Scanned: 'PDF escaneado (solo imágenes)',
+    ImageBased: 'PDF de imágenes',
+    Mixed: 'PDF mixto: algunas páginas son imágenes',
+};
+
+let textoModo = 'texto';
+let textoTarea = null;   // {nombre, bytes, paginas: [texto o null por página], faltan: [números de página]}
+
+function estadoTexto(t, error = false) {
+    $('textoEstado').textContent = t;
+    $('textoEstado').classList.toggle('error', error);
+}
+function barraTexto(f) {
+    $('textoProgreso').hidden = f === null;
+    if (f !== null) $('textoBarra').style.width = `${Math.round(f * 100)}%`;
+}
+
+function prepararTexto(modoTexto) {
+    textoModo = modoTexto;
+    textoTarea = null;
+    $('textoTitulo').textContent = TEXTOS[modoTexto].titulo;
+    $('textoDescripcion').textContent = TEXTOS[modoTexto].descripcion;
+    $('textoArchivo').hidden = true;
+    $('textoAvisoOcr').hidden = true;
+    $('textoAcciones').hidden = true;
+    $('textoSalida').hidden = true;
+    $('textoSalida').textContent = '';
+    $('textoElegir').textContent = '';
+    $('textoElegir').insertAdjacentHTML('beforeend', '<svg aria-hidden="true"><use href="#i-pdf"/></svg>Elegir un PDF');
+    estadoTexto('');
+    barraTexto(null);
+}
+
+// El Markdown de pdf-inspector, pasado a texto común (sin #, ** ni tablas con |)
+function textoLegible(md) {
+    return (md || '')
+        .split('\n')
+        .filter((l) => !/^\s*\|?\s*:?-{3,}/.test(l))
+        .map((l) => l.replace(/^#{1,6}\s+/, '').replace(/\*\*(.+?)\*\*/g, '$1').replace(/(^|\s)_(.+?)_(?=\s|$)/g, '$1$2')
+            .replace(/^\s*\|(.*)\|\s*$/, (m, celdas) => celdas.split('|').map((c) => c.trim()).join('   ')))
+        .join('\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
+async function abrirTexto(archivo) {
+    prepararTexto(textoModo);
+    $('textoNombre').textContent = archivo.name;
+    $('textoTipo').textContent = '';
+    $('textoArchivo').hidden = false;
+    $('textoElegir').lastChild.textContent = 'Elegir otro PDF';
+    estadoTexto('Leyendo el PDF…');
+    try {
+        const bytes = new Uint8Array(await archivo.arrayBuffer());
+        const insp = await cargarInspector();
+        let res;
+        try {
+            res = insp.processPdf(bytes, { profile: 'compact', includePageMarkers: true });
+        } catch (e) {
+            throw new Error(/password|encrypt/i.test(String(e)) ? 'Este PDF tiene contraseña. Abrilo, guardalo sin contraseña y probá de nuevo.' : 'No pude leerlo: no parece un PDF.');
+        }
+        // Separa el texto por página con las marcas <!-- Page N -->
+        const paginas = Array(res.pageCount).fill('');
+        const partes = (res.markdown || '').split(/<!--\s*Page\s+(\d+)\s*-->/i);
+        if (partes.length > 1) {
+            for (let k = 1; k < partes.length; k += 2) paginas[Number(partes[k]) - 1] = textoLegible(partes[k + 1]);
+        } else if (res.pageCount) {
+            paginas[0] = textoLegible(res.markdown);
+        }
+        const faltan = [...new Set(res.pagesNeedingOcr || [])].filter((n) => n >= 1 && n <= res.pageCount).sort((a, b) => a - b);
+        faltan.forEach((n) => { paginas[n - 1] = null; });
+        textoTarea = { nombre: archivo.name, bytes, paginas, faltan };
+        const n = res.pageCount;
+        $('textoTipo').textContent = `${TIPOS_PDF[res.pdfType] || 'PDF'}, ${n} ${n === 1 ? 'página' : 'páginas'}`;
+        estadoTexto('');
+        if (textoModo === 'buscable') return hacerBuscable();
+        mostrarTextoExtraido();
+        if (faltan.length) {
+            $('textoAvisoTexto').textContent = faltan.length === n
+                ? 'Este PDF es solo imágenes: no trae texto. Puedo reconocerlo leyendo las imágenes (tarda unos segundos por página).'
+                : `${faltan.length === 1 ? 'La página' : 'Las páginas'} ${faltan.join(', ')} ${faltan.length === 1 ? 'es una imagen' : 'son imágenes'}: no ${faltan.length === 1 ? 'trae' : 'traen'} texto. Puedo reconocerlo leyendo las imágenes.`;
+            $('textoAvisoOcr').hidden = false;
+        }
+    } catch (e) {
+        estadoTexto(e.message || 'No pude leer el PDF.', true);
+    }
+}
+
+function textoCompleto() {
+    const { paginas } = textoTarea;
+    const varias = paginas.length > 1;
+    return paginas.map((t, i) => {
+        const cuerpo = t === null ? `[La página ${i + 1} es una imagen: todavía no se reconoció su texto]` : (t || '');
+        return varias ? `— Página ${i + 1} —\n${cuerpo}` : cuerpo;
+    }).join('\n\n').trim();
+}
+
+function mostrarTextoExtraido() {
+    const texto = textoCompleto();
+    const vacio = !textoTarea.paginas.some((t) => t && t.trim());
+    $('textoSalida').textContent = texto;
+    $('textoSalida').hidden = false;
+    if (vacio && !textoTarea.faltan.length) $('textoSalida').textContent = 'Este PDF no tiene texto.';
+    $('textoAcciones').hidden = vacio;
+    $('textoCompartir').hidden = !(navigator.share && window.isSecureContext);
+}
+
+// Dibuja una página con pdf.js (con su giro) y la lee Tesseract
+async function leerPagina(vista, n, progreso) {
+    const pagina = await vista.getPage(n);
+    const base = pagina.getViewport({ scale: 1 });
+    const vp = pagina.getViewport({ scale: Math.min(4, LADO_HOJA / Math.max(base.width, base.height)) });
+    const c = lienzo(vp.width, vp.height), ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, c.width, c.height);
+    await pagina.render({ canvasContext: ctx, viewport: vp, intent: 'print' }).promise;
+    const ocr = await cargarOcr();
+    ocrProgreso = (m) => { if (m.status === 'recognizing text') progreso(m.progress); };
+    try {
+        const { data } = await ocr.recognize(c, {}, { text: true, blocks: true });
+        return { data, vp, canvas: c };
+    } finally {
+        ocrProgreso = null;
+    }
+}
+
+async function reconocerFaltantes() {
+    const t = textoTarea;
+    if (!t || !t.faltan.length) return;
+    $('textoOcrBtn').disabled = true;
+    try {
+        estadoTexto('Preparando el reconocimiento de texto…');
+        const pdfjs = await cargarPdfjs();
+        const vista = await pdfjs.getDocument({ data: t.bytes.slice(), isEvalSupported: false }).promise;
+        for (const [k, n] of t.faltan.entries()) {
+            estadoTexto(`Reconociendo el texto: página ${n} (${k + 1} de ${t.faltan.length})…`);
+            const { data } = await leerPagina(vista, n, (p) => barraTexto((k + p) / t.faltan.length));
+            t.paginas[n - 1] = (data.text || '').trim();
+            mostrarTextoExtraido();
+        }
+        vista.destroy();
+        t.faltan = [];
+        barraTexto(null);
+        $('textoAvisoOcr').hidden = true;
+        estadoTexto('Listo: se reconoció el texto de todas las páginas.');
+    } catch (e) {
+        estadoTexto(`No pude reconocer el texto: ${e.message}`, true);
+    } finally {
+        $('textoOcrBtn').disabled = false;
+    }
+}
+
+async function hacerBuscable() {
+    const t = textoTarea;
+    if (!t.faltan.length) {
+        estadoTexto('Este PDF ya tiene texto: ya se puede buscar y copiar. No hace falta cambiarlo.');
+        return;
+    }
+    try {
+        estadoTexto('Preparando el reconocimiento de texto…');
+        barraTexto(0);
+        const [pdfjs] = await Promise.all([cargarPdfjs(), window.PDFLib ? null : cargarScript('vendor/pdf-lib.min.js')]);
+        const P = PDFLib;
+        const doc = await P.PDFDocument.load(t.bytes, { ignoreEncryption: true });
+        if (doc.isEncrypted) throw new Error('el PDF está protegido contra cambios');
+        const fuente = await doc.embedFont(P.StandardFonts.Helvetica);
+        const letras = new Set(fuente.getCharacterSet());
+        const vista = await pdfjs.getDocument({ data: t.bytes.slice(), isEvalSupported: false }).promise;
+        let palabras = 0, mini = null;
+        for (const [k, n] of t.faltan.entries()) {
+            estadoTexto(`Reconociendo el texto: página ${n} (${k + 1} de ${t.faltan.length})…`);
+            const { data, vp, canvas } = await leerPagina(vista, n, (p) => barraTexto((k + p) / t.faltan.length));
+            if (!mini && n === 1) mini = URL.createObjectURL(await aBlob(await dibujar(canvas, LADO_MINI), 0.8));
+            const pagina = doc.getPage(n - 1);
+            // Lo que ya dibuja la página va entre q/Q, así el texto nuevo arranca sin transformaciones heredadas
+            pagina.node.wrapContentStreams(
+                doc.context.register(doc.context.contentStream(P.pushGraphicsState())),
+                doc.context.register(doc.context.contentStream(P.popGraphicsState())),
+            );
+            palabras += capaDeTextoEn(pagina, fuente, letras, data.blocks, (x, y) => vp.convertToPdfPoint(x, y));
+            await espera();
+        }
+        vista.destroy();
+        barraTexto(1);
+        estadoTexto('Guardando el PDF…');
+        const blob = new Blob([await doc.save()], { type: 'application/pdf' });
+        const nombre = nombreArchivo(`${t.nombre.replace(/\.pdf$/i, '')} (buscable)`);
+        const n = t.paginas.length, k = t.faltan.length;
+        barraTexto(null);
+        estadoTexto('');
+        await entregar(blob, nombre, `${n} ${n === 1 ? 'página' : 'páginas'}, ${tamano(blob)}. ` +
+            (palabras ? `Se reconoció el texto de ${k === n ? 'todas las páginas' : `${k} ${k === 1 ? 'página' : 'páginas'}`}.` : 'No encontré texto para reconocer.'),
+        n, mini);
+        if (mini) setTimeout(() => URL.revokeObjectURL(mini), 5000);
+    } catch (e) {
+        barraTexto(null);
+        estadoTexto(`No pude hacerlo buscable: ${e.message}`, true);
+    }
+}
+
+async function copiarTexto() {
+    const texto = textoCompleto();
+    try {
+        await navigator.clipboard.writeText(texto);
+    } catch (e) {
+        // Sin https el navegador no deja usar el portapapeles moderno: se copia a la antigua
+        const area = document.createElement('textarea');
+        area.value = texto;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        area.remove();
+    }
+    estadoTexto('Texto copiado.');
 }
 
 async function agregarPdfs(archivos) {
@@ -1106,6 +1365,18 @@ function conectar() {
     $('docRenombrar').onclick = () => renombrarDoc(docAbierto);
     $('docBorrar').onclick = () => borrarDoc(docAbierto);
     $('docCerrar').onclick = cerrarDoc;
+    document.querySelectorAll('[data-texto]').forEach((b) => {
+        b.onclick = () => { prepararTexto(b.dataset.texto); $('inPdfTexto').click(); ir('texto'); };
+    });
+    $('textoElegir').onclick = () => $('inPdfTexto').click();
+    $('inPdfTexto').onchange = (ev) => { const [archivo] = ev.target.files; ev.target.value = ''; if (archivo) abrirTexto(archivo); };
+    $('textoOcrBtn').onclick = reconocerFaltantes;
+    $('textoCopiar').onclick = copiarTexto;
+    $('textoDescargar').onclick = () => descargar(new Blob([textoCompleto()], { type: 'text/plain;charset=utf-8' }),
+        `${textoTarea.nombre.replace(/\.pdf$/i, '')}.txt`);
+    $('textoCompartir').onclick = async () => {
+        try { await navigator.share({ title: textoTarea.nombre, text: textoCompleto() }); } catch (e) { /* cancelado */ }
+    };
     $('visorCerrar').onclick = cerrarVisor;
     $('visorCompartir').onclick = () => docAbierto && compartirDoc(docAbierto);
     $('btnAgregarPdf').onclick = elegir('inPdf');

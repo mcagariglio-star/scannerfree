@@ -38,6 +38,9 @@
         <symbol id="i-editar" viewBox="0 0 24 24"><path d="M5 19h3.5L19 8.5 15.5 5 5 15.5z"/><path d="m13.5 7 3.5 3.5"/></symbol>
         <symbol id="i-renombrar" viewBox="0 0 24 24"><path d="M4 7.5h10M4 12h7M4 16.5h5"/><path d="M15 19.5h2.5l4-4-2.5-2.5-4 4z"/></symbol>
         <symbol id="i-mas" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+        <symbol id="i-texto" viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4M9 11h6M12 11v6.5"/></symbol>
+        <symbol id="i-buscar" viewBox="0 0 24 24"><path d="M11 20.5H5V3.5h8l4 4v3"/><path d="M13 3.5v4h4"/><circle cx="15.5" cy="15.5" r="3.5"/><path d="m18 18 2.5 2.5"/></symbol>
+        <symbol id="i-copiar" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="12" rx="2"/><path d="M15.5 8.5V5.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2"/></symbol>
         <symbol id="i-escudo" viewBox="0 0 24 24"><path d="M12 3.5 19 6v5.5c0 4.4-3 7.7-7 9-4-1.3-7-4.6-7-9V6z"/><path d="m8.8 12 2.2 2.2 4.2-4.4"/></symbol>
     </svg>
 
@@ -101,6 +104,18 @@
                 </button>
             </div>
 
+            <h2 class="titulo-seccion">Texto de un PDF</h2>
+            <div class="herramientas-texto">
+                <button class="herramienta-fila" type="button" data-texto="texto">
+                    <span class="icono"><svg aria-hidden="true"><use href="#i-texto"/></svg></span>
+                    <span><b>PDF a texto</b><small>Sacale el texto para copiarlo o mandarlo por mensaje</small></span>
+                </button>
+                <button class="herramienta-fila" type="button" data-texto="buscable">
+                    <span class="icono"><svg aria-hidden="true"><use href="#i-buscar"/></svg></span>
+                    <span><b>Hacer buscable un PDF escaneado</b><small>Le agrega el texto a un PDF que es solo fotos, para buscar y copiar</small></span>
+                </button>
+            </div>
+
             <div class="encabezado-seccion">
                 <h2 class="titulo-seccion">Mis documentos</h2>
                 <a class="btn texto chico" href="#documentos" id="verTodos">Ver todos</a>
@@ -110,11 +125,15 @@
 
             <section class="como-funciona" aria-labelledby="comoTitulo">
                 <h2 class="titulo-seccion" id="comoTitulo">Cómo funciona</h2>
+                <!-- En cascada: los pasos van de un lado al otro, unidos por una línea ondulada -->
                 <ol class="guia">
-                    <li><span class="paso-icono"><svg aria-hidden="true"><use href="#i-camara"/></svg></span><b>Tomá la foto</b><small>Una por hoja, o elegilas de la galería</small></li>
-                    <li><span class="paso-icono"><svg aria-hidden="true"><use href="#i-ajustar"/></svg></span><b>Ajustá</b><small>Los bordes salen solos; corregilos con el dedo</small></li>
-                    <li><span class="paso-icono"><svg aria-hidden="true"><use href="#i-pdf"/></svg></span><b>Guardá en PDF</b><small>Con el texto reconocido, para buscar y copiar</small></li>
-                    <li><span class="paso-icono"><svg aria-hidden="true"><use href="#i-check"/></svg></span><b>¡Listo!</b><small>Compartilo o encontralo en Mis documentos</small></li>
+                    <li class="paso"><span class="paso-icono"><svg aria-hidden="true"><use href="#i-camara"/></svg></span><span><b><i>1.</i> Tomá la foto</b><small>Una por hoja, o elegilas de la galería</small></span></li>
+                    <li class="onda" aria-hidden="true"><svg viewBox="0 0 100 60" preserveAspectRatio="none"><path d="M0 2C0 22 18 26 34 22S50 36 66 38 100 36 100 58"/></svg></li>
+                    <li class="paso"><span class="paso-icono"><svg aria-hidden="true"><use href="#i-ajustar"/></svg></span><span><b><i>2.</i> Ajustá</b><small>Los bordes salen solos; corregilos con el dedo</small></span></li>
+                    <li class="onda" aria-hidden="true"><svg viewBox="0 0 100 60" preserveAspectRatio="none"><path d="M100 2C100 22 82 26 66 22S50 36 34 38 0 36 0 58"/></svg></li>
+                    <li class="paso"><span class="paso-icono"><svg aria-hidden="true"><use href="#i-pdf"/></svg></span><span><b><i>3.</i> Guardá en PDF</b><small>Con el texto reconocido, para buscar y copiar</small></span></li>
+                    <li class="onda" aria-hidden="true"><svg viewBox="0 0 100 60" preserveAspectRatio="none"><path d="M0 2C0 22 18 26 34 22S50 36 66 38 100 36 100 58"/></svg></li>
+                    <li class="paso final"><span class="paso-icono"><svg aria-hidden="true"><use href="#i-check"/></svg></span><span><b>¡Listo!</b><small>Compartilo o encontralo en Mis documentos</small></span></li>
                 </ol>
             </section>
         </div>
@@ -184,6 +203,30 @@
                 <p class="ayuda">Ordená con las flechas, girá o eliminá cada página. Podés sumar más PDF o fotos desde abajo.</p>
                 <ol class="hojas" id="pdfPaginas"></ol>
             </section>
+        </div>
+
+        <!-- ── Texto de un PDF: sacar el texto o hacerlo buscable (pdf-inspector lee el PDF; las páginas que son fotos, Tesseract) ── -->
+        <div id="vistaTexto" class="vista" hidden>
+            <input type="file" id="inPdfTexto" accept="application/pdf,.pdf" hidden>
+            <h1 class="titulo-vista" id="textoTitulo">PDF a texto</h1>
+            <p class="ayuda" id="textoDescripcion"></p>
+            <div class="archivo-texto" id="textoArchivo" hidden>
+                <span class="icono"><svg aria-hidden="true"><use href="#i-pdf"/></svg></span>
+                <span class="datos"><b id="textoNombre"></b><small id="textoTipo"></small></span>
+            </div>
+            <div class="progreso" id="textoProgreso" hidden><div id="textoBarra"></div></div>
+            <p class="estado-texto" id="textoEstado" role="status" aria-live="polite"></p>
+            <div class="aviso-ocr" id="textoAvisoOcr" hidden>
+                <p id="textoAvisoTexto"></p>
+                <button class="btn primario" type="button" id="textoOcrBtn"><svg aria-hidden="true"><use href="#i-ajustar"/></svg>Reconocer el texto de esas páginas</button>
+            </div>
+            <div class="fila-botones" id="textoAcciones" hidden>
+                <button class="btn primario" type="button" id="textoCopiar"><svg aria-hidden="true"><use href="#i-copiar"/></svg>Copiar</button>
+                <button class="btn" type="button" id="textoCompartir" hidden><svg aria-hidden="true"><use href="#i-compartir"/></svg>Compartir</button>
+                <button class="btn" type="button" id="textoDescargar"><svg aria-hidden="true"><use href="#i-descargar"/></svg>Bajar .txt</button>
+            </div>
+            <pre class="texto-salida" id="textoSalida" hidden tabindex="0"></pre>
+            <button class="btn elegir-pdf" type="button" id="textoElegir"><svg aria-hidden="true"><use href="#i-pdf"/></svg>Elegir un PDF</button>
         </div>
 
         <!-- ── Mis documentos ── -->

@@ -181,23 +181,27 @@ main { max-width: 760px; margin: 0 auto; padding: 16px; }
 .sin-documentos { color: var(--grafito); font-size: .92rem; background: var(--superficie); border: 1px dashed var(--linea); border-radius: 16px; padding: 16px; margin: 0; text-align: center; }
 
 /* ── Cómo funciona (inicio) y pasos (al escanear) ── */
-.como-funciona { margin-top: 8px; }
-.guia { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; counter-reset: paso; }
-.guia li {
-    display: grid; grid-template-columns: 44px 1fr; column-gap: 14px; padding-bottom: 18px; position: relative; counter-increment: paso;
-}
-.guia li:not(:last-child)::after {
-    content: ""; position: absolute; left: 21px; top: 46px; bottom: 2px; width: 2px; background: var(--linea);
-}
+/* En cascada: paso 1 a la izquierda, 2 a la derecha, y así; entre cada uno, una onda punteada que cruza de lado */
+.guia { list-style: none; margin: 0; padding: 0; }
+.guia .paso { display: flex; align-items: center; gap: 14px; width: 82%; }
+.guia .paso:nth-child(4n + 3) { margin-left: auto; flex-direction: row-reverse; text-align: right; }
 .guia .paso-icono {
-    grid-row: span 2; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
-    background: var(--superficie); color: var(--rojo); box-shadow: inset 0 0 0 2px var(--rojo);
+    flex: none; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--superficie); color: var(--rojo); box-shadow: inset 0 0 0 2px var(--rojo), var(--sombra);
 }
-.guia li:last-child .paso-icono { background: var(--rojo); color: var(--sobre-rojo); }
-.guia b { font-weight: 800; padding-top: 2px; }
-.guia b::before { content: counter(paso) ". "; color: var(--rojo-texto); }
-.guia li:last-child b::before { content: ""; }
-.guia small { color: var(--grafito); font-size: .88rem; line-height: 1.35; }
+.guia .paso-icono svg { width: 24px; height: 24px; }
+.guia .final .paso-icono { background: var(--rojo); color: var(--sobre-rojo); box-shadow: 0 0 0 6px var(--rojo-suave); }
+.guia b { display: block; font-weight: 800; font-size: 1.02rem; }
+.guia b i { font-style: normal; color: var(--rojo-texto); }
+.guia small { display: block; color: var(--grafito); font-size: .86rem; line-height: 1.35; }
+/* La onda va del centro de un círculo (26 px del borde) al centro del siguiente, del otro lado */
+.guia .onda { height: 54px; margin: 2px 26px; }
+.guia .onda svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.guia .onda path { fill: none; stroke: var(--rojo); stroke-width: 2.5; stroke-dasharray: 2 7; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+@media (prefers-reduced-motion: no-preference) {
+    .guia .onda path { animation: avanzar 1.6s linear 3; }
+}
+@keyframes avanzar { to { stroke-dashoffset: -18; } }
 
 .pasos { list-style: none; margin: 0 0 18px; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); }
 .pasos li { display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; font-size: .8rem; font-weight: 700; color: var(--grafito); }
@@ -405,3 +409,38 @@ div.mini { cursor: default; }
 .visor-paginas { flex: 1; overflow-y: auto; padding: 12px 12px calc(24px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .visor-paginas img { width: 100%; max-width: 720px; height: auto; background: #fff; border-radius: 3px; box-shadow: 0 6px 20px rgba(0, 0, 0, .5); }
 .visor-paginas .ayuda { color: #a5a7b0; }
+
+/* ── Texto de un PDF ── */
+.herramientas-texto { display: grid; gap: 10px; }
+@media (min-width: 620px) { .herramientas-texto { grid-template-columns: 1fr 1fr; } }
+.herramienta-fila {
+    display: flex; align-items: center; gap: 14px; text-align: left; cursor: pointer; width: 100%;
+    padding: 12px 14px; border-radius: 18px; border: 1px solid var(--linea); background: var(--superficie); color: var(--tinta);
+    box-shadow: var(--sombra);
+}
+.herramienta-fila:active { transform: scale(.985); }
+.herramienta-fila .icono { flex: none; width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; background: var(--rojo-suave); color: var(--rojo-texto); }
+.herramienta-fila .icono svg { width: 26px; height: 26px; }
+.herramienta-fila b { display: block; font-weight: 800; font-size: .98rem; line-height: 1.2; }
+.herramienta-fila small { display: block; color: var(--grafito); font-size: .84rem; line-height: 1.3; margin-top: 2px; }
+
+.archivo-texto {
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin: 12px 0 4px;
+    background: var(--superficie); border: 1px solid var(--linea); border-radius: 16px;
+}
+.archivo-texto .icono { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--rojo); color: var(--sobre-rojo); flex: none; }
+.archivo-texto .datos { min-width: 0; }
+.archivo-texto b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.archivo-texto small { color: var(--grafito); font-size: .86rem; }
+.estado-texto { color: var(--grafito); font-size: .94rem; min-height: 1.4em; margin: 10px 0; }
+.estado-texto.error { color: var(--peligro); font-weight: 600; }
+.aviso-ocr { background: var(--rojo-suave); border-radius: 16px; padding: 14px; margin: 8px 0 12px; }
+.aviso-ocr p { margin: 0 0 10px; font-size: .94rem; }
+.aviso-ocr .btn { width: 100%; }
+.texto-salida {
+    white-space: pre-wrap; overflow-wrap: anywhere; font: 15px/1.55 "Bricolage", system-ui, sans-serif; margin: 12px 0;
+    background: var(--superficie); border: 1px solid var(--linea); border-radius: 16px; padding: 16px; max-height: 60vh; overflow: auto;
+    user-select: text; -webkit-user-select: text;
+}
+.texto-salida:focus-visible { outline-offset: -3px; }
+.elegir-pdf { width: 100%; margin-top: 8px; }
