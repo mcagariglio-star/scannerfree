@@ -1,4 +1,4 @@
-"""Servidor para probar ScanerFree en la PC y desde el celular en la misma red Wi-Fi.
+"""Servidor para probar ScannerFree en la PC y desde el celular en la misma red Wi-Fi.
 
     python herramientas/servidor.py          (puerto 8030)
 
@@ -46,5 +46,5 @@ def ip_local():
 
 if __name__ == "__main__":
     servidor = Servidor(("0.0.0.0", PUERTO), functools.partial(Manejador, directory=CARPETA))
-    print(f"ScanerFree en http://localhost:{PUERTO}  (desde el celular: http://{ip_local()}:{PUERTO})", flush=True)
+    print(f"ScannerFree en http://localhost:{PUERTO}  (desde el celular: http://{ip_local()}:{PUERTO})", flush=True)
     servidor.serve_forever()

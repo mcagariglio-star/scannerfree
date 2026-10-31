@@ -1,6 +1,6 @@
 # Librerías incluidas
 
-ScanerFree trae estas librerías dentro de la carpeta `vendor/`, así anda sin internet y sin pedirle nada a otros sitios.
+ScannerFree trae estas librerías dentro de la carpeta `vendor/`, así anda sin internet y sin pedirle nada a otros sitios.
 
 | Librería | Versión | Licencia | Para qué |
 |---|---|---|---|

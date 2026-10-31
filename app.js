@@ -1,5 +1,5 @@
 /*
- * ScanerFree — escáner de documentos que corre entero en el navegador.
+ * ScannerFree — escáner de documentos y herramientas PDF que corren enteros en el navegador.
  *
  * Por cada hoja:
  *   1. La foto se achica a LADO_FOTO px (parada como se ve en la galería) y se guarda en el celular (IndexedDB),
@@ -30,19 +30,24 @@ let pdfListo = null;   // {blob, nombre, url}
 
 // ── Guardado en el celular (IndexedDB) ──
 
+// Dos cajones: 'hojas' (el escaneo en curso) y 'documentos' (los PDF terminados, «Mis documentos»)
 const db = (() => {
     let abierta = null;
     const abrir = () => abierta || (abierta = new Promise((ok, mal) => {
-        const pedido = indexedDB.open('scanerfree', 1);
-        pedido.onupgradeneeded = () => pedido.result.createObjectStore('hojas', { keyPath: 'id' });
+        const pedido = indexedDB.open('scanerfree', 2);
+        pedido.onupgradeneeded = () => {
+            const base = pedido.result;
+            if (!base.objectStoreNames.contains('hojas')) base.createObjectStore('hojas', { keyPath: 'id' });
+            if (!base.objectStoreNames.contains('documentos')) base.createObjectStore('documentos', { keyPath: 'id' });
+        };
         pedido.onsuccess = () => ok(pedido.result);
         pedido.onerror = () => mal(pedido.error);
     }));
-    const tx = async (modo, f) => {
+    const tx = async (cajon, modo, f) => {
         const base = await abrir();
         return new Promise((ok, mal) => {
-            const t = base.transaction('hojas', modo);
-            const pedido = f(t.objectStore('hojas'));
+            const t = base.transaction(cajon, modo);
+            const pedido = f(t.objectStore(cajon));
             t.oncomplete = () => ok(pedido && pedido.result);
             t.onerror = () => mal(t.error);
         });
@@ -50,13 +55,16 @@ const db = (() => {
     // Si el navegador no deja guardar (modo incógnito, poco espacio), la app sigue andando sin guardar
     const seguro = (f) => async (...args) => { try { return await f(...args); } catch (e) { return null; } };
     return {
-        todas: seguro(() => tx('readonly', (s) => s.getAll())),
-        guardar: seguro((h, orden) => tx('readwrite', (s) => s.put({
+        todas: seguro(() => tx('hojas', 'readonly', (s) => s.getAll())),
+        guardar: seguro((h, orden) => tx('hojas', 'readwrite', (s) => s.put({
             id: h.id, foto: h.foto, ancho: h.ancho, alto: h.alto, esquinas: h.esquinas, encontrada: h.encontrada,
             filtro: h.filtro, giro: h.giro, hoja: h.hoja, orden,
         }))),
-        borrar: seguro((id) => tx('readwrite', (s) => s.delete(id))),
-        vaciar: seguro(() => tx('readwrite', (s) => s.clear())),
+        borrar: seguro((id) => tx('hojas', 'readwrite', (s) => s.delete(id))),
+        vaciar: seguro(() => tx('hojas', 'readwrite', (s) => s.clear())),
+        documentos: seguro(() => tx('documentos', 'readonly', (s) => s.getAll())),
+        guardarDocumento: seguro((d) => tx('documentos', 'readwrite', (s) => s.put(d))),
+        borrarDocumento: seguro((id) => tx('documentos', 'readwrite', (s) => s.delete(id))),
     };
 })();
 
@@ -319,10 +327,10 @@ function itemPagina(i, total, { id, mini, giro = 0, aviso, pie, nombre, onAbrir,
         </${onAbrir ? 'button' : 'div'}>
         ${pie ? '<span class="pie-hoja"></span>' : ''}
         <div class="barra-hoja">
-            <button type="button" aria-label="Mover antes" ${i === 0 ? 'disabled' : ''}>←</button>
-            <button type="button" aria-label="Mover después" ${i === total - 1 ? 'disabled' : ''}>→</button>
-            <button type="button" aria-label="Girar a la derecha">↻</button>
-            <button type="button" aria-label="Eliminar ${nombre} ${i + 1}">🗑</button>
+            <button type="button" aria-label="Mover antes" ${i === 0 ? 'disabled' : ''}><svg><use href="#i-izq"/></svg></button>
+            <button type="button" aria-label="Mover después" ${i === total - 1 ? 'disabled' : ''}><svg><use href="#i-der"/></svg></button>
+            <button type="button" aria-label="Girar a la derecha"><svg><use href="#i-girar"/></svg></button>
+            <button type="button" aria-label="Eliminar ${nombre} ${i + 1}"><svg><use href="#i-basura"/></svg></button>
         </div>`;
     if (pie) li.querySelector('.pie-hoja').textContent = pie;
     ponerMini(li, mini, giro);
@@ -369,6 +377,19 @@ function pintar() {
     const todasIguales = hojas.every((h) => h.filtro === comun);
     document.querySelectorAll('#filtrosTodas [data-filtro]').forEach((b) =>
         b.setAttribute('aria-pressed', String(hay && todasIguales && b.dataset.filtro === comun)));
+    actualizarPasos();
+}
+
+// Los pasos de arriba del escáner: Foto → Ajustá → PDF → ¡Listo!, con el que toca resaltado
+function actualizarPasos() {
+    let paso = hojas.length ? 1 : 0;
+    if (modo === 'escanear' && !$('dlgPdf').hidden) paso = 2;
+    if (!$('resultado').hidden) paso = 3;
+    document.querySelectorAll('#pasos li').forEach((li, i) => {
+        li.classList.toggle('hecho', i < paso || paso === 3);
+        li.classList.toggle('actual', i === paso);
+        if (i === paso) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
+    });
 }
 
 function mover(i, paso) {
@@ -528,12 +549,11 @@ const hoy = () => new Date().toLocaleDateString('es-AR').replaceAll('/', '-');
 function abrirPdf() {
     const herramientas = modo === 'pdf';
     if (!$('pdfNombre').value) $('pdfNombre').value = herramientas ? nombreSugerido() : `Documento ${hoy()}`;
-    $('pdfTitulo').textContent = herramientas ? 'Guardar el PDF' : 'Crear el PDF';
-    $('pdfCrear').textContent = herramientas ? 'Guardar PDF' : 'Crear PDF';
     $('pdfOcrFila').hidden = herramientas;
     $('pdfEstado').textContent = '';
     $('pdfProgreso').hidden = true;
     $('dlgPdf').hidden = false;
+    actualizarPasos();
 }
 
 // Las palabras que reconoció Tesseract, invisibles, en el mismo lugar que en la imagen
@@ -585,8 +605,8 @@ async function crearPdf(ev) {
         if (!window.PDFLib) await cargarScript('vendor/pdf-lib.min.js');
         const pdf = await PDFLib.PDFDocument.create();
         pdf.setTitle(nombre.replace(/\.pdf$/i, ''));
-        pdf.setCreator('ScanerFree');
-        pdf.setProducer('ScanerFree');
+        pdf.setCreator('ScannerFree');
+        pdf.setProducer('ScannerFree');
         let fuente = null, letras = null, ocr = null, palabras = 0;
         if (conOcr) {
             estado('Preparando el reconocimiento de texto…');
@@ -616,8 +636,9 @@ async function crearPdf(ev) {
         barra(1);
         estado('Guardando el PDF…');
         const blob = new Blob([await pdf.save()], { type: 'application/pdf' });
-        entregar(blob, nombre, `${total} ${total === 1 ? 'hoja' : 'hojas'}, ${tamano(blob)}` +
-            (conOcr ? (palabras ? ', con el texto reconocido.' : '. No encontré texto para reconocer.') : '.'));
+        await entregar(blob, nombre, `${total} ${total === 1 ? 'hoja' : 'hojas'}, ${tamano(blob)}` +
+            (conOcr ? (palabras ? ', con el texto reconocido.' : '. No encontré texto para reconocer.') : '.'),
+        total, hojas[0] && hojas[0].mini);
     } catch (e) {
         estado(`No pude armar el PDF: ${e.message}`);
     } finally {
@@ -628,12 +649,18 @@ async function crearPdf(ev) {
 
 const tamano = (blob) => (blob.size > 1e6 ? `${(blob.size / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(blob.size / 1e3))} KB`);
 
-// El PDF terminado (del escáner o de las herramientas): se muestra con Compartir y Descargar
-function entregar(blob, nombre, detalle) {
+// El PDF terminado (del escáner o de las herramientas): queda en «Mis documentos» y se muestra con
+// Compartir y Descargar
+async function entregar(blob, nombre, detalle, cantidad, miniUrl) {
     if (pdfListo) URL.revokeObjectURL(pdfListo.url);
     pdfListo = { blob, nombre, url: URL.createObjectURL(blob) };
     $('dlgPdf').hidden = true;
-    $('resultadoTexto').textContent = `«${nombre}»: ${detalle}`;
+    let mini = null;
+    try { if (miniUrl) mini = await (await fetch(miniUrl)).blob(); } catch (e) { /* sin miniatura */ }
+    const guardado = await db.guardarDocumento({ id: nuevoId(), nombre, blob, paginas: cantidad, fecha: Date.now(), mini });
+    // Que el navegador no borre los documentos solo si se queda sin espacio
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    $('resultadoTexto').textContent = `«${nombre}»: ${detalle}` + (guardado !== null ? ' Quedó guardado en Mis documentos.' : '');
     $('btnNuevo').textContent = modo === 'pdf' ? 'Empezar con otro PDF' : 'Escanear otro documento';
     $('btnDescargar').href = pdfListo.url;
     $('btnDescargar').download = pdfListo.nombre;
@@ -641,6 +668,7 @@ function entregar(blob, nombre, detalle) {
     $('btnCompartir').hidden = !(navigator.canShare && navigator.canShare({ files: [archivo] }));
     $('resultado').hidden = false;
     $('resultado').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    actualizarPasos();
 }
 
 async function compartir() {
@@ -662,7 +690,7 @@ function nuevoDocumento() {
 // Las tres son la misma mesa: se suman PDF (cada página por separado) y fotos, se ordenan, giran y eliminan,
 // y al guardar se copian las páginas originales tal cual (el texto y la calidad no cambian).
 
-let modo = 'escanear';
+let modo = 'inicio';   // la pantalla que se ve: 'inicio' | 'escanear' | 'pdf' | 'documentos'
 let paginas = [];   // {id, tipo: 'pdf' | 'img', fuente, num, blob, giro, mini, fallo}
 let fuentes = [];   // los PDF abiertos: {nombre, bytes, vista (documento de pdf.js)}
 let intencion = null;   // 'unir' | 'eliminar' | 'fotos': para sugerir el nombre del PDF
@@ -681,22 +709,187 @@ function cargarPdfjs() {
     return pdfjsListo;
 }
 
-function cambiarModo(nuevo) {
-    modo = nuevo;
-    const pdf = modo === 'pdf';
-    $('vistaEscaner').hidden = pdf;
-    $('vistaPdf').hidden = !pdf;
-    $('accionesEscaner').hidden = pdf;
-    $('accionesPdf').hidden = !pdf;
-    $('modoEscanear').setAttribute('aria-selected', String(!pdf));
-    $('modoPdf').setAttribute('aria-selected', String(pdf));
-    $('resultado').hidden = true;
-    $('pdfNombre').value = '';
-    avisar('');
+// ── Pantallas: inicio, escanear, herramientas PDF y mis documentos ──
+// Cada una tiene su dirección (#escanear, #pdf, #documentos): así el botón «atrás» del celular vuelve al inicio.
+
+const VISTAS = { inicio: 'vistaInicio', escanear: 'vistaEscaner', pdf: 'vistaPdf', documentos: 'vistaDocs' };
+let desdeInicio = false;   // si se llegó desde el inicio, «volver» es ir para atrás en el historial
+
+const vistaDeDireccion = () => (VISTAS[location.hash.slice(1)] ? location.hash.slice(1) : 'inicio');
+
+function mostrarVista(nueva) {
+    const cambia = nueva !== modo;
+    modo = nueva;
+    for (const [nombre, id] of Object.entries(VISTAS)) $(id).hidden = nombre !== modo;
+    const conAcciones = modo === 'escanear' || modo === 'pdf';
+    $('accionesEscaner').hidden = modo !== 'escanear';
+    $('accionesPdf').hidden = modo !== 'pdf';
+    document.body.classList.toggle('con-acciones', conAcciones);
+    $('btnVolver').hidden = modo === 'inicio';
+    $('pie').hidden = modo !== 'inicio';
+    if (cambia) {
+        $('resultado').hidden = true;
+        $('pdfNombre').value = '';
+        avisar('');
+        window.scrollTo(0, 0);
+    }
     pintar();
     pintarPaginas();
-    try { localStorage.setItem('scanerfree_modo', modo); } catch (e) { /* sin guardar, no pasa nada */ }
-    if (pdf) cargarPdfjs().catch(() => {});
+    if (modo === 'pdf') cargarPdfjs().catch(() => {});
+    if (modo === 'inicio' || modo === 'documentos') pintarDocumentos();
+}
+
+function ir(vista) {
+    if (vista === modo) return;
+    desdeInicio = modo === 'inicio';
+    location.hash = vista === 'inicio' ? '' : vista;   // el cambio de dirección muestra la pantalla
+}
+
+function volver() {
+    if (desdeInicio) history.back(); else location.hash = '';
+    desdeInicio = false;
+}
+
+// ── Mis documentos: los PDF terminados quedan guardados en el celular ──
+
+let docs = [], docAbierto = null, urlsDocs = [], urlsVisor = [];
+
+function fechaCorta(ms) {
+    const d = new Date(ms), hoy = new Date();
+    const dias = Math.round((new Date(hoy.toDateString()) - new Date(d.toDateString())) / 864e5);
+    if (dias === 0) return `hoy ${d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })}`;
+    if (dias === 1) return 'ayer';
+    return d.toLocaleDateString('es-AR');
+}
+
+const detalleDoc = (d) => `${d.paginas} ${d.paginas === 1 ? 'página' : 'páginas'}, ${fechaCorta(d.fecha)}, ${tamano(d.blob)}`;
+
+async function pintarDocumentos() {
+    docs = ((await db.documentos()) || []).sort((a, b) => b.fecha - a.fecha);
+    urlsDocs.forEach((u) => URL.revokeObjectURL(u));
+    urlsDocs = [];
+    const fila = (d) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<button class="documento" type="button">
+            ${d.mini ? '<img alt="">' : '<span class="sin-mini"><svg><use href="#i-pdf"/></svg></span>'}
+            <span class="datos"><b></b><small></small></span>
+            <span class="etiqueta-pdf">PDF</span>
+        </button>`;
+        if (d.mini) {
+            const url = URL.createObjectURL(d.mini);
+            urlsDocs.push(url);
+            li.querySelector('img').src = url;
+        }
+        li.querySelector('b').textContent = d.nombre;
+        li.querySelector('small').textContent = detalleDoc(d);
+        li.querySelector('button').onclick = () => abrirDoc(d);
+        return li;
+    };
+    $('recientes').replaceChildren(...docs.slice(0, 3).map(fila));
+    $('documentos').replaceChildren(...docs.map(fila));
+    $('sinRecientes').hidden = $('sinDocumentos').hidden = docs.length > 0;
+    $('verTodos').hidden = docs.length === 0;
+}
+
+function abrirDoc(d) {
+    docAbierto = d;
+    const img = $('docMini');
+    if (img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+    img.hidden = !d.mini;
+    if (d.mini) img.src = URL.createObjectURL(d.mini);
+    $('docTitulo').textContent = d.nombre;
+    $('docDetalle').textContent = detalleDoc(d);
+    $('dlgDoc').hidden = false;
+}
+
+const cerrarDoc = () => { $('dlgDoc').hidden = true; };
+const archivoDe = (d) => new File([d.blob], d.nombre, { type: 'application/pdf' });
+
+function descargar(blob, nombre) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = nombre;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+
+async function compartirDoc(d) {
+    const archivo = archivoDe(d);
+    if (!(navigator.canShare && navigator.canShare({ files: [archivo] }))) return descargar(d.blob, d.nombre);
+    try {
+        await navigator.share({ files: [archivo], title: d.nombre });
+    } catch (e) {
+        if (e.name !== 'AbortError') descargar(d.blob, d.nombre);
+    }
+}
+
+// Visor: cada página dibujada con pdf.js, una abajo de la otra
+async function verDoc(d) {
+    cerrarDoc();
+    $('visorTitulo').textContent = d.nombre;
+    const cont = $('visorPaginas');
+    cont.innerHTML = '<p class="ayuda">Abriendo…</p>';
+    $('visor').hidden = false;
+    document.body.style.overflow = 'hidden';
+    try {
+        const pdfjs = await cargarPdfjs();
+        const doc = await pdfjs.getDocument({ data: new Uint8Array(await d.blob.arrayBuffer()), isEvalSupported: false }).promise;
+        cont.innerHTML = '';
+        const ancho = Math.min(1400, Math.round(Math.min(window.innerWidth, 720) * (window.devicePixelRatio || 1)));
+        for (let n = 1; n <= doc.numPages && !$('visor').hidden; n++) {
+            const pagina = await doc.getPage(n);
+            const base = pagina.getViewport({ scale: 1 });
+            const vp = pagina.getViewport({ scale: ancho / base.width });
+            const c = lienzo(vp.width, vp.height), ctx = c.getContext('2d');
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, c.width, c.height);
+            await pagina.render({ canvasContext: ctx, viewport: vp, intent: 'print' }).promise;
+            const url = URL.createObjectURL(await aBlob(c, 0.85));
+            urlsVisor.push(url);
+            const img = document.createElement('img');
+            img.alt = `Página ${n}`;
+            img.src = url;
+            cont.appendChild(img);
+        }
+        doc.destroy();
+    } catch (e) {
+        cont.innerHTML = '<p class="ayuda">No pude abrir el documento.</p>';
+    }
+}
+
+function cerrarVisor() {
+    $('visor').hidden = true;
+    document.body.style.overflow = '';
+    urlsVisor.forEach((u) => URL.revokeObjectURL(u));
+    urlsVisor = [];
+    $('visorPaginas').innerHTML = '';
+}
+
+async function editarDoc(d) {
+    if (paginas.length && !confirm('Ya estás editando otras páginas. ¿Las reemplazo por este documento?')) return;
+    cerrarDoc();
+    ir('pdf');
+    vaciarPaginas();
+    intencion = 'eliminar';
+    await agregarPdfs([archivoDe(d)]);
+}
+
+async function renombrarDoc(d) {
+    const nuevo = prompt('Nuevo nombre', d.nombre.replace(/\.pdf$/i, ''));
+    if (!nuevo || !nuevo.trim()) return;
+    d.nombre = nombreArchivo(nuevo);
+    await db.guardarDocumento(d);
+    $('docTitulo').textContent = d.nombre;
+    pintarDocumentos();
+}
+
+async function borrarDoc(d) {
+    if (!confirm(`¿Borrar «${d.nombre}» de este celular?`)) return;
+    await db.borrarDocumento(d.id);
+    cerrarDoc();
+    pintarDocumentos();
 }
 
 async function agregarPdfs(archivos) {
@@ -832,8 +1025,8 @@ async function guardarHerramientas(ev) {
         estado('Armando el PDF…');
         const salida = await P.PDFDocument.create();
         salida.setTitle(nombre.replace(/\.pdf$/i, ''));
-        salida.setCreator('ScanerFree');
-        salida.setProducer('ScanerFree');
+        salida.setCreator('ScannerFree');
+        salida.setProducer('ScannerFree');
         // Las páginas de cada PDF se copian juntas: así comparten letras e imágenes y el archivo no se agranda
         const copiadas = new Map();
         for (const [f, fuente] of fuentes.entries()) {
@@ -862,7 +1055,7 @@ async function guardarHerramientas(ev) {
         estado('Guardando el PDF…');
         const blob = new Blob([await salida.save()], { type: 'application/pdf' });
         const n = paginas.length;
-        entregar(blob, nombre, `${n} ${n === 1 ? 'página' : 'páginas'}, ${tamano(blob)}.`);
+        await entregar(blob, nombre, `${n} ${n === 1 ? 'página' : 'páginas'}, ${tamano(blob)}.`, n, paginas[0] && paginas[0].mini);
     } catch (e) {
         estado(`No pude guardar el PDF: ${e.message}`);
     } finally {
@@ -896,12 +1089,25 @@ function conectar() {
     };
     document.querySelectorAll('#edFiltros [data-filtro]').forEach((b) => { b.onclick = () => { ed.filtro = b.dataset.filtro; infoEditor(); }; });
 
-    $('modoEscanear').onclick = () => cambiarModo('escanear');
-    $('modoPdf').onclick = () => cambiarModo('pdf');
+    $('btnVolver').onclick = volver;
+    window.addEventListener('hashchange', () => mostrarVista(vistaDeDireccion()));
+    // El selector de archivos se abre en el mismo toque (los navegadores no lo dejan abrir después)
+    $('inicioEscanear').onclick = () => { $('inCamara').click(); ir('escanear'); };
     const elegir = (input, cual) => () => { if (cual) intencion = intencion || cual; $(input).click(); };
-    $('hUnir').onclick = elegir('inPdf', 'unir');
-    $('hEliminar').onclick = elegir('inPdfUno', 'eliminar');
-    $('hFotos').onclick = elegir('inImagenes', 'fotos');
+    const ENTRADAS = { unir: 'inPdf', eliminar: 'inPdfUno', fotos: 'inImagenes' };
+    document.querySelectorAll('[data-herramienta]').forEach((b) => {
+        const cual = b.dataset.herramienta;
+        b.onclick = () => { elegir(ENTRADAS[cual], cual)(); ir('pdf'); };
+    });
+    $('docVer').onclick = () => verDoc(docAbierto);
+    $('docCompartir').onclick = () => compartirDoc(docAbierto);
+    $('docDescargar').onclick = () => descargar(docAbierto.blob, docAbierto.nombre);
+    $('docEditar').onclick = () => editarDoc(docAbierto);
+    $('docRenombrar').onclick = () => renombrarDoc(docAbierto);
+    $('docBorrar').onclick = () => borrarDoc(docAbierto);
+    $('docCerrar').onclick = cerrarDoc;
+    $('visorCerrar').onclick = cerrarVisor;
+    $('visorCompartir').onclick = () => docAbierto && compartirDoc(docAbierto);
     $('btnAgregarPdf').onclick = elegir('inPdf');
     $('btnImagenes').onclick = elegir('inImagenes');
     for (const id of ['inPdf', 'inPdfUno']) {
@@ -912,13 +1118,15 @@ function conectar() {
     $('pdfBorrarTodo').onclick = () => { if (confirm('¿Sacar todas las páginas y empezar de nuevo?')) vaciarPaginas(); };
 
     $('formPdf').onsubmit = (ev) => (modo === 'pdf' ? guardarHerramientas(ev) : crearPdf(ev));
-    $('pdfCancelar').onclick = () => { $('dlgPdf').hidden = true; };
+    $('pdfCancelar').onclick = () => { $('dlgPdf').hidden = true; actualizarPasos(); };
     $('btnCompartir').onclick = compartir;
     $('btnNuevo').onclick = nuevoDocumento;
     document.addEventListener('keydown', (ev) => {
         if (ev.key !== 'Escape') return;
         if (!$('editor').hidden) cerrarEditor();
-        else if (!$('dlgPdf').hidden && !$('pdfCrear').disabled) $('dlgPdf').hidden = true;
+        else if (!$('visor').hidden) cerrarVisor();
+        else if (!$('dlgDoc').hidden) cerrarDoc();
+        else if (!$('dlgPdf').hidden && !$('pdfCrear').disabled) $('pdfCancelar').click();
     });
 }
 
@@ -935,8 +1143,8 @@ async function recuperar() {
 }
 
 conectar();
-try { if (localStorage.getItem('scanerfree_modo') === 'pdf') modo = 'pdf'; } catch (e) { /* sin guardar */ }
-cambiarModo(modo);
+modo = null;
+mostrarVista(vistaDeDireccion());
 recuperar();
 // OpenCV pesa: se empieza a cargar apenas abre la app, así está lista para la primera foto
 setTimeout(() => cargarCv().catch(() => {}), 300);

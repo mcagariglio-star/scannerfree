@@ -1,4 +1,4 @@
-# ScanerFree
+# ScannerFree
 
 Escáner de documentos **gratis, sin publicidad y sin cuenta**. Le sacás foto a cada hoja: la app encuentra los bordes, la endereza, la deja prolija y arma un PDF donde se puede buscar y copiar el texto.
 
@@ -13,6 +13,8 @@ Escáner de documentos **gratis, sin publicidad y sin cuenta**. Le sacás foto a
 - PDF con el texto reconocido (OCR en español) invisible encima de la imagen
 - Compartir directo (WhatsApp, mail, Drive…) o descargar
 - **Herramientas PDF**: unir varios PDF, eliminar páginas, girarlas y reordenarlas, y crear un PDF desde fotos. Las páginas se copian tal cual: el texto y la calidad no cambian
+- **Mis documentos**: los PDF que hacés quedan guardados en el celular para verlos, compartirlos, renombrarlos, editarlos o borrarlos
+- Inicio con todo a mano y pasos guiados: tomá la foto, ajustá, guardá en PDF, ¡listo!
 - Se instala como app y anda sin internet
 - Si el navegador se cierra mientras sacás la foto, las hojas quedan guardadas en el celular
 
