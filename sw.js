@@ -1,6 +1,6 @@
 // Guarda la app entera en el celular la primera vez, así después anda sin internet.
 // Al cambiar cualquier archivo, subir VERSION para que los celulares bajen la nueva.
-const VERSION = 'scannerfree-v8';
+const VERSION = 'scannerfree-v9';
 const ARCHIVOS = [
     './', 'index.html', 'app.css', 'app.js', 'manifest.json',
     'fuentes/bricolage.woff2',

@@ -348,9 +348,93 @@ function ponerMini(li, mini, giro = 0, fallo = false) {
     if (fallo) { caja.querySelector('.procesando').textContent = 'Sin vista previa'; return; }
     if (!mini) return;
     let img = caja.querySelector('img');
-    if (!img) { img = document.createElement('img'); img.alt = ''; caja.querySelector('.procesando').replaceWith(img); }
+    if (!img) { img = document.createElement('img'); img.alt = ''; img.draggable = false; caja.querySelector('.procesando').replaceWith(img); }
     img.src = mini;
     img.className = giro ? `giro${giro}` : '';
+}
+
+// Arrastrar para ordenar. Con el mouse, se agarra la página y se lleva. Con el dedo, se mantiene apretada un
+// momento y después se lleva; así, deslizar el dedo sigue sirviendo para bajar por la pantalla.
+// Mientras se arrastra, las otras páginas se corren; al soltar, `alSoltar` recibe los id en el orden nuevo.
+function habilitarArrastre(lista, alSoltar) {
+    let toque = null;      // el dedo o el mouse apoyado, antes de empezar a arrastrar
+    let arrastre = null;   // {li, fantasma, dx, dy, x, y, raf}
+    let ignorarClick = false;
+
+    const renumerar = () => lista.querySelectorAll('.numero').forEach((n, i) => { n.textContent = i + 1; });
+
+    const mover = (x, y) => {
+        arrastre.x = x;
+        arrastre.y = y;
+        arrastre.fantasma.style.transform = `translate(${x - arrastre.dx}px, ${y - arrastre.dy}px) scale(1.05)`;
+        const debajo = document.elementFromPoint(x, y);
+        const otro = debajo && debajo.closest('.hoja');
+        if (!otro || otro === arrastre.li || otro.parentNode !== lista) return;
+        const items = [...lista.children];
+        if (items.indexOf(arrastre.li) < items.indexOf(otro)) otro.after(arrastre.li); else otro.before(arrastre.li);
+        renumerar();
+    };
+
+    // Cerca del borde de arriba o de abajo, la pantalla se desplaza sola
+    const desplazar = () => {
+        if (!arrastre) return;
+        const { y } = arrastre, abajo = window.innerHeight - 150;
+        const v = y < 110 ? -(110 - y) / 5 : y > abajo ? (y - abajo) / 5 : 0;
+        if (v) { window.scrollBy(0, v); mover(arrastre.x, arrastre.y); }
+        arrastre.raf = requestAnimationFrame(desplazar);
+    };
+
+    const empezar = () => {
+        const { li, x0, y0, tipo } = toque;
+        clearTimeout(toque.timer);
+        const r = li.getBoundingClientRect();
+        const fantasma = li.cloneNode(true);
+        fantasma.classList.add('fantasma');
+        fantasma.removeAttribute('data-id');
+        Object.assign(fantasma.style, { width: `${r.width}px`, height: `${r.height}px` });
+        document.body.appendChild(fantasma);
+        li.classList.add('arrastrando');
+        arrastre = { li, fantasma, dx: x0 - r.left, dy: y0 - r.top, x: x0, y: y0 };
+        mover(x0, y0);
+        if (tipo !== 'mouse' && navigator.vibrate) navigator.vibrate(15);
+        desplazar();
+    };
+
+    const terminar = () => {
+        if (toque) clearTimeout(toque.timer);
+        toque = null;
+        if (!arrastre) return;
+        cancelAnimationFrame(arrastre.raf);
+        arrastre.fantasma.remove();
+        arrastre.li.classList.remove('arrastrando');
+        arrastre = null;
+        // El toque que terminó el arrastre no tiene que abrir la página
+        ignorarClick = true;
+        setTimeout(() => { ignorarClick = false; }, 60);
+        alSoltar([...lista.children].map((li) => li.dataset.id));
+    };
+
+    lista.addEventListener('pointerdown', (ev) => {
+        if (ev.button > 0 || arrastre) return;
+        const li = ev.target.closest('.hoja');
+        if (!li || ev.target.closest('.barra-hoja')) return;
+        toque = { li, x0: ev.clientX, y0: ev.clientY, tipo: ev.pointerType, id: ev.pointerId };
+        if (ev.pointerType !== 'mouse') toque.timer = setTimeout(() => { if (toque) empezar(); }, 350);
+    });
+    window.addEventListener('pointermove', (ev) => {
+        if (arrastre) { mover(ev.clientX, ev.clientY); return; }
+        if (!toque || ev.pointerId !== toque.id) return;
+        if (Math.hypot(ev.clientX - toque.x0, ev.clientY - toque.y0) < 8) return;
+        if (toque.tipo === 'mouse') empezar();
+        else { clearTimeout(toque.timer); toque = null; }   // se movió antes de tiempo: está bajando la pantalla
+    });
+    window.addEventListener('pointerup', terminar);
+    window.addEventListener('pointercancel', terminar);
+    // Mientras se arrastra con el dedo, que la pantalla no se mueva con él
+    window.addEventListener('touchmove', (ev) => { if (arrastre) ev.preventDefault(); }, { passive: false });
+    lista.addEventListener('click', (ev) => { if (ignorarClick) { ev.preventDefault(); ev.stopPropagation(); } }, true);
+    lista.addEventListener('contextmenu', (ev) => { if (ev.target.closest('.hoja')) ev.preventDefault(); });
+    lista.addEventListener('dragstart', (ev) => ev.preventDefault());
 }
 
 function pintar() {
@@ -1410,6 +1494,15 @@ function conectar() {
     $('textoElegir').onclick = () => $('inPdfTexto').click();
     $('inPdfTexto').onchange = (ev) => { const [archivo] = ev.target.files; ev.target.value = ''; if (archivo) abrirTexto(archivo); };
     $('textoOcrBtn').onclick = reconocerFaltantes;
+    habilitarArrastre($('hojas'), (ids) => {
+        hojas = ids.map((id) => hojas.find((h) => h.id === id)).filter(Boolean);
+        pintar();
+        guardarOrden();
+    });
+    habilitarArrastre($('pdfPaginas'), (ids) => {
+        paginas = ids.map((id) => paginas.find((p) => p.id === id)).filter(Boolean);
+        pintarPaginas();
+    });
     $('btnApoyar').onclick = abrirApoyar;
     $('apoyarCopiar').onclick = copiarDireccion;
     $('apoyarCerrar').onclick = () => { $('dlgApoyar').hidden = true; };

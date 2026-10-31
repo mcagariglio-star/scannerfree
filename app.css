@@ -480,3 +480,14 @@ div.mini { cursor: default; }
 .apoyar-dlg .advertencia { font-size: .84rem; color: var(--grafito); margin: 12px 0 4px; text-align: left; }
 .apoyar-dlg #apoyarCerrar { width: 100%; }
 .pie a { color: var(--rojo-texto); font-weight: 700; }
+
+/* ── Arrastrar páginas para ordenarlas ── */
+.hoja { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+div.mini { cursor: grab; }
+.hoja.arrastrando { opacity: .3; }
+.hoja.arrastrando .mini { outline: 2px dashed var(--rojo); outline-offset: -2px; }
+.hoja.fantasma {
+    position: fixed; left: 0; top: 0; z-index: 50; margin: 0; pointer-events: none; cursor: grabbing;
+    filter: drop-shadow(0 14px 24px rgba(0, 0, 0, .35));
+}
+.hoja.fantasma .barra-hoja, .hoja.fantasma .pie-hoja { visibility: hidden; }
