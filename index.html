@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <!-- La app no puede conectarse a ningún otro sitio: todo lo que necesita está acá -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' blob: data:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <meta name="referrer" content="no-referrer">
+    <title>ScanerFree</title>
+    <meta name="description" content="Escáner de documentos gratis, sin publicidad y sin cuenta. Todo pasa en tu celular.">
+    <meta name="theme-color" content="#fbfbf8" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0b1638" media="(prefers-color-scheme: dark)">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="iconos/icono.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="iconos/icono-180.png">
+    <link rel="stylesheet" href="app.css">
+</head>
+<body>
+    <header class="barra">
+        <div class="marca">
+            <img src="iconos/icono.svg" alt="" width="34" height="34">
+            <span>Scaner<b>Free</b></span>
+        </div>
+        <span class="sello" title="Las fotos no salen de tu celular">Todo queda en tu celular</span>
+    </header>
+
+    <main>
+        <!-- Sin hojas todavía -->
+        <section id="vacio" class="vacio">
+            <!-- Lo que hace la app, en una animación: la hoja torcida se endereza y se escanea -->
+            <svg class="demo" viewBox="0 0 260 220" role="img" aria-label="Una hoja torcida que se endereza">
+                <rect class="demo-mesa" x="10" y="10" width="240" height="200" rx="28"/>
+                <g class="demo-hoja">
+                    <rect class="demo-papel" x="72" y="30" width="116" height="160" rx="4"/>
+                    <rect class="demo-renglon titulo" x="86" y="48" width="58" height="9" rx="4.5"/>
+                    <rect class="demo-renglon" x="86" y="70" width="88" height="5" rx="2.5"/>
+                    <rect class="demo-renglon" x="86" y="82" width="80" height="5" rx="2.5"/>
+                    <rect class="demo-renglon" x="86" y="94" width="86" height="5" rx="2.5"/>
+                    <rect class="demo-renglon" x="86" y="106" width="52" height="5" rx="2.5"/>
+                    <rect class="demo-renglon" x="86" y="126" width="88" height="5" rx="2.5"/>
+                    <rect class="demo-renglon" x="86" y="138" width="74" height="5" rx="2.5"/>
+                    <rect class="demo-firma" x="130" y="160" width="44" height="14" rx="7"/>
+                    <rect class="demo-barrido" x="72" y="30" width="116" height="14"/>
+                </g>
+                <g class="demo-esquinas">
+                    <path class="e1" d="M64 46 V22 H88"/>
+                    <path class="e2" d="M172 22 H196 V46"/>
+                    <path class="e3" d="M196 174 V198 H172"/>
+                    <path class="e4" d="M88 198 H64 V174"/>
+                </g>
+            </svg>
+            <h1><span>Escaneá tus papeles.</span> <span>Gratis, de verdad.</span></h1>
+            <p>Sacale una foto a cada hoja: la app encuentra los bordes, la endereza, la deja prolija y arma un PDF donde se puede buscar el texto.</p>
+            <ul class="promesas">
+                <li>Sin publicidad</li>
+                <li>Sin cuenta</li>
+                <li>Tus fotos no salen del celular</li>
+                <li>Anda sin internet</li>
+            </ul>
+        </section>
+
+        <!-- Las hojas del documento -->
+        <section id="documento" hidden>
+            <div class="encabezado-doc">
+                <h2 id="cuentaHojas">1 hoja</h2>
+                <button class="btn chico texto" type="button" id="btnBorrarTodo">Empezar de nuevo</button>
+            </div>
+            <div class="filtros-todas">
+                <span>Todas las hojas:</span>
+                <div class="seg" role="group" aria-label="Filtro para todas las hojas" id="filtrosTodas">
+                    <button type="button" data-filtro="color">Color</button>
+                    <button type="button" data-filtro="grises">Grises</button>
+                    <button type="button" data-filtro="byn">B y N</button>
+                </div>
+            </div>
+            <ol class="hojas" id="hojas"></ol>
+            <p class="ayuda">Tocá una hoja para corregir los bordes, girarla o cambiarle el filtro.</p>
+        </section>
+
+        <!-- El PDF listo -->
+        <section id="resultado" class="tarjeta" hidden>
+            <h2>¡Listo!</h2>
+            <p id="resultadoTexto"></p>
+            <div class="fila-botones">
+                <button class="btn primario" type="button" id="btnCompartir" hidden>Compartir</button>
+                <a class="btn" id="btnDescargar" download>Descargar</a>
+            </div>
+            <button class="btn texto" type="button" id="btnNuevo">Escanear otro documento</button>
+        </section>
+
+        <p class="estado" id="estado" role="status" aria-live="polite"></p>
+    </main>
+
+    <!-- Abajo, siempre a mano -->
+    <nav class="acciones">
+        <input type="file" id="inCamara" accept="image/*" capture="environment" hidden>
+        <input type="file" id="inGaleria" accept="image/*" multiple hidden>
+        <button class="lateral" type="button" id="btnGaleria">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="m4 16 5-5 4 4 2-2 5 5"/><circle cx="15.5" cy="9.5" r="1.5"/></svg>
+            <span>Galería</span>
+        </button>
+        <button class="disparador" type="button" id="btnCamara">
+            <span class="aro" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+            </span>
+            <span id="txtCamara">Sacar foto</span>
+        </button>
+        <button class="lateral" type="button" id="btnPdf" disabled>
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg>
+            <span>Crear PDF</span>
+        </button>
+    </nav>
+
+    <footer class="pie">
+        <p>ScanerFree es libre y gratis: no tiene publicidad, no pide cuenta, no te sigue y no manda tus fotos a ningún lado. Todo se procesa en tu celular.</p>
+        <p>Código abierto con licencia GPL-3.0.</p>
+    </footer>
+
+    <!-- Ajustar una hoja -->
+    <div class="dialogo" id="editor" hidden role="dialog" aria-modal="true" aria-labelledby="editorTitulo">
+        <div class="editor">
+            <div class="editor-arriba">
+                <button class="btn texto" type="button" id="edCancelar">Cancelar</button>
+                <h2 id="editorTitulo">Hoja 1</h2>
+                <button class="btn primario chico" type="button" id="edListo">Listo</button>
+            </div>
+            <p class="ayuda centro">Arrastrá los círculos a las esquinas de la hoja.</p>
+            <div class="lienzo" id="lienzo">
+                <img id="edFoto" alt="Foto de la hoja">
+                <svg id="edEsquinas" aria-hidden="true"></svg>
+                <div class="lupa" id="lupa" hidden></div>
+            </div>
+            <div class="editor-abajo">
+                <div class="fila-botones">
+                    <button class="btn chico" type="button" id="edDetectar">Detectar bordes</button>
+                    <button class="btn chico" type="button" id="edEntera">Foto entera</button>
+                    <button class="btn chico" type="button" id="edGirar" aria-label="Girar a la derecha">Girar ↻</button>
+                </div>
+                <div class="seg" role="group" aria-label="Filtro de esta hoja" id="edFiltros">
+                    <button type="button" data-filtro="color">Color</button>
+                    <button type="button" data-filtro="grises">Grises</button>
+                    <button type="button" data-filtro="byn">B y N</button>
+                </div>
+                <p class="ayuda centro" id="edInfo"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Crear el PDF -->
+    <div class="dialogo" id="dlgPdf" hidden role="dialog" aria-modal="true" aria-labelledby="pdfTitulo">
+        <form class="tarjeta hoja-abajo" id="formPdf">
+            <h2 id="pdfTitulo">Crear el PDF</h2>
+            <label for="pdfNombre">Nombre</label>
+            <input type="text" id="pdfNombre" maxlength="80" autocomplete="off">
+            <label class="check"><input type="checkbox" id="pdfOcr" checked> Reconocer el texto (así se puede buscar y copiar)</label>
+            <div class="progreso" id="pdfProgreso" hidden><div id="pdfBarra"></div></div>
+            <p class="ayuda" id="pdfEstado"></p>
+            <div class="fila-botones">
+                <button class="btn texto" type="button" id="pdfCancelar">Cancelar</button>
+                <button class="btn primario" type="submit" id="pdfCrear">Crear PDF</button>
+            </div>
+        </form>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

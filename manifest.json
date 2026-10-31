@@ -1,0 +1,19 @@
+{
+  "name": "ScanerFree — escáner de documentos",
+  "short_name": "ScanerFree",
+  "description": "Escáner de documentos gratis, sin publicidad y sin cuenta. Todo pasa en tu celular.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fbfbf8",
+  "theme_color": "#1d3fd8",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "iconos/icono-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "iconos/icono-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "iconos/icono-mascara-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "iconos/icono.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
