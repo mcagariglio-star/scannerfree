@@ -1413,7 +1413,28 @@ async function recuperar() {
     pintar();
 }
 
+// «Cómo funciona»: le dice a cada paso en qué escalón va y pone una línea ondulada entre paso y paso.
+// Los pasos se cambian en index.html; esto no hace falta tocarlo.
+function armarGuia() {
+    const guia = $('guia');
+    guia.querySelectorAll('.onda').forEach((o) => o.remove());
+    const pasos = [...guia.querySelectorAll('.paso')];
+    guia.style.setProperty('--n', pasos.length);
+    pasos.forEach((paso, i) => {
+        paso.style.setProperty('--i', i);
+        if (i === pasos.length - 1) return;
+        const onda = document.createElement('li');
+        onda.className = 'onda';
+        onda.setAttribute('aria-hidden', 'true');
+        onda.style.setProperty('--i', i);
+        // Baja del círculo de este paso al del siguiente, con una ola en el medio
+        onda.innerHTML = '<svg viewBox="0 0 100 60" preserveAspectRatio="none"><path d="M0 0C0 24 30 18 50 30S100 36 100 60"/></svg>';
+        paso.after(onda);
+    });
+}
+
 conectar();
+armarGuia();
 modo = null;
 mostrarVista(vistaDeDireccion());
 recuperar();

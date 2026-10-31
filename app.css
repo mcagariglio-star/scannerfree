@@ -181,12 +181,21 @@ main { max-width: 760px; margin: 0 auto; padding: 16px; }
 .sin-documentos { color: var(--grafito); font-size: .92rem; background: var(--superficie); border: 1px dashed var(--linea); border-radius: 16px; padding: 16px; margin: 0; text-align: center; }
 
 /* ── Cómo funciona (inicio) y pasos (al escanear) ── */
-/* En cascada: paso 1 a la izquierda, 2 a la derecha, y así; entre cada uno, una onda punteada que cruza de lado */
-.guia { list-style: none; margin: 0; padding: 0; }
-.guia .paso { display: flex; align-items: center; gap: 14px; width: 82%; }
-.guia .paso:nth-child(4n + 3) { margin-left: auto; flex-direction: row-reverse; text-align: right; }
+/* ── Cómo funciona ──
+ * En escalera: cada paso va abajo del anterior y un escalón más a la derecha. Entre paso y paso, una línea
+ * ondulada punteada que baja del centro de un círculo al centro del siguiente. app.js (armarGuia) pone las
+ * líneas y le dice a cada paso en qué escalón está (--i) y cuántos son (--n).
+ * --escalon: cuánto se corre a la derecha cada paso (más grande = escalera más inclinada).
+ * --circulo: tamaño de los círculos.
+ */
+.guia { --escalon: 12%; --circulo: 52px; list-style: none; margin: 0; padding: 0; }
+.guia .paso {
+    display: flex; align-items: center; gap: 14px;
+    margin-left: calc(var(--i, 0) * var(--escalon));
+    width: calc(100% - (var(--n, 1) - 1) * var(--escalon));
+}
 .guia .paso-icono {
-    flex: none; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+    flex: none; width: var(--circulo); height: var(--circulo); border-radius: 50%; display: grid; place-items: center;
     background: var(--superficie); color: var(--rojo); box-shadow: inset 0 0 0 2px var(--rojo), var(--sombra);
 }
 .guia .paso-icono svg { width: 24px; height: 24px; }
@@ -194,8 +203,11 @@ main { max-width: 760px; margin: 0 auto; padding: 16px; }
 .guia b { display: block; font-weight: 800; font-size: 1.02rem; }
 .guia b i { font-style: normal; color: var(--rojo-texto); }
 .guia small { display: block; color: var(--grafito); font-size: .86rem; line-height: 1.35; }
-/* La onda va del centro de un círculo (26 px del borde) al centro del siguiente, del otro lado */
-.guia .onda { height: 54px; margin: 2px 26px; }
+.guia .onda {
+    height: 46px; margin: 3px 0;
+    margin-left: calc(var(--i, 0) * var(--escalon) + var(--circulo) / 2);
+    width: var(--escalon);
+}
 .guia .onda svg { width: 100%; height: 100%; display: block; overflow: visible; }
 .guia .onda path { fill: none; stroke: var(--rojo); stroke-width: 2.5; stroke-dasharray: 2 7; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 @media (prefers-reduced-motion: no-preference) {

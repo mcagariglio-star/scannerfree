@@ -125,14 +125,24 @@
 
             <section class="como-funciona" aria-labelledby="comoTitulo">
                 <h2 class="titulo-seccion" id="comoTitulo">Cómo funciona</h2>
-                <!-- En cascada: los pasos van de un lado al otro, unidos por una línea ondulada -->
-                <ol class="guia">
+                <!--
+                    CÓMO FUNCIONA: los pasos bajan en escalera (uno abajo del otro, cada uno más a la derecha),
+                    unidos por una línea ondulada. Las líneas y la escalera se arman solas (armarGuia() en app.js).
+
+                    Para cambiar un paso, tocá solo lo que está entre las marcas de cada <li class="paso">:
+                      · el ícono:  href="#i-camara"  (otros: #i-ajustar, #i-pdf, #i-check, #i-galeria, #i-compartir,
+                                    #i-docs, #i-texto, #i-buscar, #i-unir, #i-escudo)
+                      · el número: <i>1.</i>
+                      · el título: lo que sigue al número, dentro de <b>…</b>
+                      · la explicación: dentro de <small>…</small>
+                    Para sumar un paso, copiá un <li class="paso">…</li> entero y pegalo donde quieras.
+                    El último paso lleva class="paso final" (sale con el círculo relleno).
+                    Para que la escalera baje más o menos inclinada, cambiá --escalon en app.css (sección «Cómo funciona»).
+                -->
+                <ol class="guia" id="guia">
                     <li class="paso"><span class="paso-icono"><svg aria-hidden="true"><use href="#i-camara"/></svg></span><span><b><i>1.</i> Tomá la foto</b><small>Una por hoja, o elegilas de la galería</small></span></li>
-                    <li class="onda" aria-hidden="true"><svg viewBox="0 0 100 60" preserveAspectRatio="none"><path d="M0 2C0 22 18 26 34 22S50 36 66 38 100 36 100 58"/></svg></li>
                     <li class="paso"><span class="paso-icono"><svg aria-hidden="true"><use href="#i-ajustar"/></svg></span><span><b><i>2.</i> Ajustá</b><small>Los bordes salen solos; corregilos con el dedo</small></span></li>
-                    <li class="onda" aria-hidden="true"><svg viewBox="0 0 100 60" preserveAspectRatio="none"><path d="M100 2C100 22 82 26 66 22S50 36 34 38 0 36 0 58"/></svg></li>
                     <li class="paso"><span class="paso-icono"><svg aria-hidden="true"><use href="#i-pdf"/></svg></span><span><b><i>3.</i> Guardá en PDF</b><small>Con el texto reconocido, para buscar y copiar</small></span></li>
-                    <li class="onda" aria-hidden="true"><svg viewBox="0 0 100 60" preserveAspectRatio="none"><path d="M0 2C0 22 18 26 34 22S50 36 66 38 100 36 100 58"/></svg></li>
                     <li class="paso final"><span class="paso-icono"><svg aria-hidden="true"><use href="#i-check"/></svg></span><span><b>¡Listo!</b><small>Compartilo o encontralo en Mis documentos</small></span></li>
                 </ol>
             </section>
