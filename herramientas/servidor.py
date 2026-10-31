@@ -17,7 +17,7 @@ CARPETA = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 class Manejador(http.server.SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map,
-                      ".js": "text/javascript", ".wasm": "application/wasm", ".json": "application/json",
+                      ".js": "text/javascript", ".mjs": "text/javascript", ".wasm": "application/wasm", ".json": "application/json",
                       ".woff2": "font/woff2", ".gz": "application/gzip", ".svg": "image/svg+xml"}
 
     def end_headers(self):
@@ -26,6 +26,13 @@ class Manejador(http.server.SimpleHTTPRequestHandler):
 
     def log_message(self, *args):
         pass
+
+
+class Servidor(http.server.ThreadingHTTPServer):
+    def handle_error(self, request, client_address):
+        # El celular corta conexiones que ya no usa: no es un error
+        if not isinstance(sys.exc_info()[1], ConnectionError):
+            super().handle_error(request, client_address)
 
 
 def ip_local():
@@ -38,6 +45,6 @@ def ip_local():
 
 
 if __name__ == "__main__":
-    servidor = http.server.ThreadingHTTPServer(("0.0.0.0", PUERTO), functools.partial(Manejador, directory=CARPETA))
+    servidor = Servidor(("0.0.0.0", PUERTO), functools.partial(Manejador, directory=CARPETA))
     print(f"ScanerFree en http://localhost:{PUERTO}  (desde el celular: http://{ip_local()}:{PUERTO})", flush=True)
     servidor.serve_forever()

@@ -305,32 +305,58 @@ function filtroComun() {
     return hojas.length && hojas.every((h) => h.filtro === hojas[0].filtro) ? hojas[0].filtro : 'color';
 }
 
+// Una página en la grilla (la usan el escáner y las herramientas PDF): miniatura con su número y los botones
+// para ordenar, girar y eliminar. `giro` gira solo la miniatura (en el escáner ya viene girada).
+function itemPagina(i, total, { id, mini, giro = 0, aviso, pie, nombre, onAbrir, onMover, onGirar, onSacar }) {
+    const li = document.createElement('li');
+    li.className = 'hoja';
+    li.dataset.id = id;
+    li.innerHTML = `
+        <span class="numero" aria-hidden="true">${i + 1}</span>
+        <${onAbrir ? 'button type="button"' : 'div'} class="mini" ${onAbrir ? `aria-label="Ajustar ${nombre} ${i + 1}"` : ''}>
+            <span class="procesando">Procesando…</span>
+            ${aviso ? `<span class="aviso">${aviso}</span>` : ''}
+        </${onAbrir ? 'button' : 'div'}>
+        ${pie ? '<span class="pie-hoja"></span>' : ''}
+        <div class="barra-hoja">
+            <button type="button" aria-label="Mover antes" ${i === 0 ? 'disabled' : ''}>←</button>
+            <button type="button" aria-label="Mover después" ${i === total - 1 ? 'disabled' : ''}>→</button>
+            <button type="button" aria-label="Girar a la derecha">↻</button>
+            <button type="button" aria-label="Eliminar ${nombre} ${i + 1}">🗑</button>
+        </div>`;
+    if (pie) li.querySelector('.pie-hoja').textContent = pie;
+    ponerMini(li, mini, giro);
+    const [antes, despues, girarBtn, sacar] = li.querySelectorAll('.barra-hoja button');
+    if (onAbrir) li.querySelector('.mini').onclick = onAbrir;
+    antes.onclick = () => onMover(-1);
+    despues.onclick = () => onMover(1);
+    girarBtn.onclick = onGirar;
+    sacar.onclick = onSacar;
+    return li;
+}
+
+function ponerMini(li, mini, giro = 0, fallo = false) {
+    const caja = li.querySelector('.mini');
+    if (fallo) { caja.querySelector('.procesando').textContent = 'Sin vista previa'; return; }
+    if (!mini) return;
+    let img = caja.querySelector('img');
+    if (!img) { img = document.createElement('img'); img.alt = ''; caja.querySelector('.procesando').replaceWith(img); }
+    img.src = mini;
+    img.className = giro ? `giro${giro}` : '';
+}
+
 function pintar() {
     const lista = $('hojas');
     lista.innerHTML = '';
     hojas.forEach((h, i) => {
-        const li = document.createElement('li');
-        li.className = 'hoja';
-        li.innerHTML = `
-            <span class="numero" aria-hidden="true">${i + 1}</span>
-            <button class="mini" type="button" aria-label="Ajustar la hoja ${i + 1}">
-                ${h.mini ? '<img alt="">' : '<span class="procesando">Procesando…</span>'}
-                ${h.mini && !h.encontrada ? '<span class="aviso">No encontré los bordes: tocá para marcarlos</span>' : ''}
-            </button>
-            <div class="barra-hoja">
-                <button type="button" aria-label="Mover antes" ${i === 0 ? 'disabled' : ''}>←</button>
-                <button type="button" aria-label="Mover después" ${i === hojas.length - 1 ? 'disabled' : ''}>→</button>
-                <button type="button" aria-label="Girar a la derecha">↻</button>
-                <button type="button" aria-label="Sacar la hoja">🗑</button>
-            </div>`;
-        if (h.mini) li.querySelector('img').src = h.mini;
-        const [mini, antes, despues, girarBtn, sacar] = li.querySelectorAll('button');
-        mini.onclick = () => abrirEditor(h);
-        antes.onclick = () => mover(i, -1);
-        despues.onclick = () => mover(i, 1);
-        girarBtn.onclick = () => { h.giro = (h.giro + 1) % 4; rehacer(h); };
-        sacar.onclick = () => sacarHoja(h);
-        lista.appendChild(li);
+        lista.appendChild(itemPagina(i, hojas.length, {
+            id: h.id, mini: h.mini, nombre: 'la hoja',
+            aviso: h.mini && !h.encontrada ? 'No encontré los bordes: tocá para marcarlos' : '',
+            onAbrir: () => abrirEditor(h),
+            onMover: (paso) => mover(i, paso),
+            onGirar: () => { h.giro = (h.giro + 1) % 4; rehacer(h); },
+            onSacar: () => sacarHoja(h),
+        }));
     });
 
     const hay = hojas.length > 0;
@@ -497,11 +523,14 @@ function nombreArchivo(nombre) {
     return /\.pdf$/i.test(limpio) ? limpio : `${limpio}.pdf`;
 }
 
+const hoy = () => new Date().toLocaleDateString('es-AR').replaceAll('/', '-');
+
 function abrirPdf() {
-    if (!$('pdfNombre').value) {
-        const hoy = new Date();
-        $('pdfNombre').value = `Documento ${hoy.toLocaleDateString('es-AR').replaceAll('/', '-')}`;
-    }
+    const herramientas = modo === 'pdf';
+    if (!$('pdfNombre').value) $('pdfNombre').value = herramientas ? nombreSugerido() : `Documento ${hoy()}`;
+    $('pdfTitulo').textContent = herramientas ? 'Guardar el PDF' : 'Crear el PDF';
+    $('pdfCrear').textContent = herramientas ? 'Guardar PDF' : 'Crear PDF';
+    $('pdfOcrFila').hidden = herramientas;
     $('pdfEstado').textContent = '';
     $('pdfProgreso').hidden = true;
     $('dlgPdf').hidden = false;
@@ -587,10 +616,8 @@ async function crearPdf(ev) {
         barra(1);
         estado('Guardando el PDF…');
         const blob = new Blob([await pdf.save()], { type: 'application/pdf' });
-        if (pdfListo) URL.revokeObjectURL(pdfListo.url);
-        pdfListo = { blob, nombre, url: URL.createObjectURL(blob) };
-        mostrarResultado(total, conOcr, palabras);
-        $('dlgPdf').hidden = true;
+        entregar(blob, nombre, `${total} ${total === 1 ? 'hoja' : 'hojas'}, ${tamano(blob)}` +
+            (conOcr ? (palabras ? ', con el texto reconocido.' : '. No encontré texto para reconocer.') : '.'));
     } catch (e) {
         estado(`No pude armar el PDF: ${e.message}`);
     } finally {
@@ -599,10 +626,15 @@ async function crearPdf(ev) {
     }
 }
 
-function mostrarResultado(total, conOcr, palabras) {
-    const tam = pdfListo.blob.size > 1e6 ? `${(pdfListo.blob.size / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(pdfListo.blob.size / 1e3))} KB`;
-    $('resultadoTexto').textContent = `«${pdfListo.nombre}»: ${total} ${total === 1 ? 'hoja' : 'hojas'}, ${tam}` +
-        (conOcr ? (palabras ? ', con el texto reconocido.' : '. No encontré texto para reconocer.') : '.');
+const tamano = (blob) => (blob.size > 1e6 ? `${(blob.size / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(blob.size / 1e3))} KB`);
+
+// El PDF terminado (del escáner o de las herramientas): se muestra con Compartir y Descargar
+function entregar(blob, nombre, detalle) {
+    if (pdfListo) URL.revokeObjectURL(pdfListo.url);
+    pdfListo = { blob, nombre, url: URL.createObjectURL(blob) };
+    $('dlgPdf').hidden = true;
+    $('resultadoTexto').textContent = `«${nombre}»: ${detalle}`;
+    $('btnNuevo').textContent = modo === 'pdf' ? 'Empezar con otro PDF' : 'Escanear otro documento';
     $('btnDescargar').href = pdfListo.url;
     $('btnDescargar').download = pdfListo.nombre;
     const archivo = new File([pdfListo.blob], pdfListo.nombre, { type: 'application/pdf' });
@@ -623,7 +655,219 @@ async function compartir() {
 function nuevoDocumento() {
     $('resultado').hidden = true;
     $('pdfNombre').value = '';
-    empezarDeNuevo();
+    if (modo === 'pdf') vaciarPaginas(); else empezarDeNuevo();
+}
+
+// ── Herramientas PDF: unir, eliminar páginas y crear desde fotos ──
+// Las tres son la misma mesa: se suman PDF (cada página por separado) y fotos, se ordenan, giran y eliminan,
+// y al guardar se copian las páginas originales tal cual (el texto y la calidad no cambian).
+
+let modo = 'escanear';
+let paginas = [];   // {id, tipo: 'pdf' | 'img', fuente, num, blob, giro, mini, fallo}
+let fuentes = [];   // los PDF abiertos: {nombre, bytes, vista (documento de pdf.js)}
+let intencion = null;   // 'unir' | 'eliminar' | 'fotos': para sugerir el nombre del PDF
+
+const nuevoId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
+
+let pdfjsListo = null;
+function cargarPdfjs() {
+    if (!pdfjsListo) {
+        pdfjsListo = import('./vendor/pdfjs/pdf.min.mjs').then((m) => {
+            m.GlobalWorkerOptions.workerSrc = new URL('vendor/pdfjs/pdf.worker.min.mjs', location.href).href;
+            return m;
+        });
+        pdfjsListo.catch(() => { pdfjsListo = null; });
+    }
+    return pdfjsListo;
+}
+
+function cambiarModo(nuevo) {
+    modo = nuevo;
+    const pdf = modo === 'pdf';
+    $('vistaEscaner').hidden = pdf;
+    $('vistaPdf').hidden = !pdf;
+    $('accionesEscaner').hidden = pdf;
+    $('accionesPdf').hidden = !pdf;
+    $('modoEscanear').setAttribute('aria-selected', String(!pdf));
+    $('modoPdf').setAttribute('aria-selected', String(pdf));
+    $('resultado').hidden = true;
+    $('pdfNombre').value = '';
+    avisar('');
+    pintar();
+    pintarPaginas();
+    try { localStorage.setItem('scanerfree_modo', modo); } catch (e) { /* sin guardar, no pasa nada */ }
+    if (pdf) cargarPdfjs().catch(() => {});
+}
+
+async function agregarPdfs(archivos) {
+    if (!archivos.length) return;
+    $('resultado').hidden = true;
+    let pdfjs;
+    try { pdfjs = await cargarPdfjs(); } catch (e) { avisar('No pude cargar el lector de PDF.', true); return; }
+    let error = '';
+    for (const archivo of archivos) {
+        avisar(`Abriendo «${archivo.name}»…`);
+        try {
+            const bytes = await archivo.arrayBuffer();
+            // pdf.js se queda con la copia (la pasa a su worker); los bytes originales son para guardar
+            const vista = await pdfjs.getDocument({ data: bytes.slice(0), isEvalSupported: false }).promise;
+            const fuente = fuentes.push({ nombre: archivo.name, bytes, vista }) - 1;
+            for (let num = 1; num <= vista.numPages; num++) paginas.push({ id: nuevoId(), tipo: 'pdf', fuente, num, giro: 0, mini: null });
+        } catch (e) {
+            error = e && e.name === 'PasswordException'
+                ? `«${archivo.name}» tiene contraseña. Abrilo, guardalo sin contraseña y probá de nuevo.`
+                : `No pude abrir «${archivo.name}»: no parece un PDF.`;
+        }
+    }
+    avisar(error, !!error);
+    pintarPaginas();
+    miniaturasPdf();
+}
+
+async function agregarImagenes(archivos) {
+    if (!archivos.length) return;
+    $('resultado').hidden = true;
+    let error = '';
+    for (const [i, archivo] of archivos.entries()) {
+        avisar(archivos.length > 1 ? `Preparando la foto ${i + 1} de ${archivos.length}…` : 'Preparando la foto…');
+        try {
+            const c = await dibujar(archivo, LADO_HOJA);
+            const blob = await aBlob(c, 0.9);
+            const mini = URL.createObjectURL(await aBlob(await dibujar(c, LADO_MINI), 0.8));
+            paginas.push({ id: nuevoId(), tipo: 'img', blob, giro: 0, mini, nombre: archivo.name });
+            pintarPaginas();
+        } catch (e) {
+            error = `No pude abrir «${archivo.name}»: no parece una imagen.`;
+        }
+    }
+    avisar(error, !!error);
+    pintarPaginas();
+}
+
+// Las miniaturas de las páginas de PDF, de a una (un PDF largo no traba el celular)
+let dibujandoMinis = false;
+async function miniaturasPdf() {
+    if (dibujandoMinis) return;
+    dibujandoMinis = true;
+    try {
+        for (let p; (p = paginas.find((x) => x.tipo === 'pdf' && !x.mini && !x.fallo));) {
+            try {
+                const pagina = await fuentes[p.fuente].vista.getPage(p.num);
+                const base = pagina.getViewport({ scale: 1 });
+                const vp = pagina.getViewport({ scale: LADO_MINI / Math.max(base.width, base.height) });
+                const c = lienzo(vp.width, vp.height), ctx = c.getContext('2d');
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, c.width, c.height);
+                // Con intent 'print' pdf.js no espera al refresco de pantalla: dibuja aunque la app quede de fondo
+                await pagina.render({ canvasContext: ctx, viewport: vp, intent: 'print' }).promise;
+                p.mini = URL.createObjectURL(await aBlob(c, 0.8));
+            } catch (e) {
+                p.fallo = true;
+            }
+            const li = document.querySelector(`#pdfPaginas [data-id="${p.id}"]`);
+            if (li) ponerMini(li, p.mini, p.giro, p.fallo);
+        }
+    } finally {
+        dibujandoMinis = false;
+    }
+}
+
+function pintarPaginas() {
+    const lista = $('pdfPaginas');
+    lista.innerHTML = '';
+    const varios = fuentes.length > 1 || (fuentes.length && paginas.some((p) => p.tipo === 'img'));
+    paginas.forEach((p, i) => {
+        lista.appendChild(itemPagina(i, paginas.length, {
+            id: p.id, mini: p.mini, giro: p.giro, nombre: 'la página',
+            // Si hay más de un archivo, cada página dice de cuál viene
+            pie: p.tipo === 'pdf' ? (varios ? `${fuentes[p.fuente].nombre}, pág. ${p.num}` : `Pág. ${p.num}`) : (varios ? p.nombre : ''),
+            onMover: (paso) => { [paginas[i], paginas[i + paso]] = [paginas[i + paso], paginas[i]]; pintarPaginas(); },
+            onGirar: () => {
+                p.giro = (p.giro + 1) % 4;
+                const li = lista.querySelector(`[data-id="${p.id}"]`);
+                if (li) ponerMini(li, p.mini, p.giro, p.fallo);
+            },
+            onSacar: () => {
+                paginas.splice(paginas.indexOf(p), 1);
+                if (p.tipo === 'img' && p.mini) URL.revokeObjectURL(p.mini);
+                pintarPaginas();
+            },
+        }));
+        if (p.fallo) ponerMini(lista.lastChild, null, 0, true);
+    });
+    const hay = paginas.length > 0;
+    $('pdfVacio').hidden = hay || !$('resultado').hidden;
+    $('pdfTrabajo').hidden = !hay;
+    $('btnGuardarPdf').disabled = !hay;
+    $('pdfCuenta').textContent = `${paginas.length} ${paginas.length === 1 ? 'página' : 'páginas'}`;
+}
+
+function vaciarPaginas() {
+    paginas.forEach((p) => { if (p.mini) URL.revokeObjectURL(p.mini); });
+    fuentes.forEach((f) => f.vista && f.vista.destroy());
+    paginas = [];
+    fuentes = [];
+    intencion = null;
+    pintarPaginas();
+    avisar('');
+}
+
+function nombreSugerido() {
+    const base = fuentes.length ? fuentes[0].nombre.replace(/\.pdf$/i, '') : '';
+    if (intencion === 'eliminar' && fuentes.length === 1 && base) return `${base} (editado)`;
+    if (intencion === 'fotos' || !fuentes.length) return `Fotos ${hoy()}`;
+    return fuentes.length > 1 ? `PDF unido ${hoy()}` : `${base} (editado)`;
+}
+
+async function guardarHerramientas(ev) {
+    ev.preventDefault();
+    const nombre = nombreArchivo($('pdfNombre').value);
+    const boton = $('pdfCrear');
+    const estado = (t) => { $('pdfEstado').textContent = t; };
+    const barra = (f) => { $('pdfProgreso').hidden = false; $('pdfBarra').style.width = `${Math.round(f * 100)}%`; };
+    boton.disabled = true;
+    try {
+        if (!window.PDFLib) await cargarScript('vendor/pdf-lib.min.js');
+        const P = PDFLib;
+        estado('Armando el PDF…');
+        const salida = await P.PDFDocument.create();
+        salida.setTitle(nombre.replace(/\.pdf$/i, ''));
+        salida.setCreator('ScanerFree');
+        salida.setProducer('ScanerFree');
+        // Las páginas de cada PDF se copian juntas: así comparten letras e imágenes y el archivo no se agranda
+        const copiadas = new Map();
+        for (const [f, fuente] of fuentes.entries()) {
+            const usadas = paginas.filter((p) => p.tipo === 'pdf' && p.fuente === f);
+            if (!usadas.length) continue;
+            const doc = await P.PDFDocument.load(fuente.bytes, { ignoreEncryption: true });
+            if (doc.isEncrypted) throw new Error(`«${fuente.nombre}» está protegido contra cambios.`);
+            const copias = await salida.copyPages(doc, usadas.map((p) => p.num - 1));
+            usadas.forEach((p, k) => copiadas.set(p, copias[k]));
+        }
+        for (const [i, p] of paginas.entries()) {
+            barra(i / paginas.length);
+            if (p.tipo === 'pdf') {
+                const pagina = copiadas.get(p);
+                if (p.giro) pagina.setRotation(P.degrees((pagina.getRotation().angle + p.giro * 90) % 360));
+                salida.addPage(pagina);
+            } else {
+                const c = girar(await dibujar(p.blob, LADO_HOJA), p.giro);
+                const img = await salida.embedJpg(await (await aBlob(c, 0.9)).arrayBuffer());
+                const e = 595.28 / Math.min(img.width, img.height);
+                salida.addPage([img.width * e, img.height * e]).drawImage(img, { x: 0, y: 0, width: img.width * e, height: img.height * e });
+            }
+            await espera();
+        }
+        barra(1);
+        estado('Guardando el PDF…');
+        const blob = new Blob([await salida.save()], { type: 'application/pdf' });
+        const n = paginas.length;
+        entregar(blob, nombre, `${n} ${n === 1 ? 'página' : 'páginas'}, ${tamano(blob)}.`);
+    } catch (e) {
+        estado(`No pude guardar el PDF: ${e.message}`);
+    } finally {
+        boton.disabled = false;
+    }
 }
 
 // ── Arranque ──
@@ -652,7 +896,22 @@ function conectar() {
     };
     document.querySelectorAll('#edFiltros [data-filtro]').forEach((b) => { b.onclick = () => { ed.filtro = b.dataset.filtro; infoEditor(); }; });
 
-    $('formPdf').onsubmit = crearPdf;
+    $('modoEscanear').onclick = () => cambiarModo('escanear');
+    $('modoPdf').onclick = () => cambiarModo('pdf');
+    const elegir = (input, cual) => () => { if (cual) intencion = intencion || cual; $(input).click(); };
+    $('hUnir').onclick = elegir('inPdf', 'unir');
+    $('hEliminar').onclick = elegir('inPdfUno', 'eliminar');
+    $('hFotos').onclick = elegir('inImagenes', 'fotos');
+    $('btnAgregarPdf').onclick = elegir('inPdf');
+    $('btnImagenes').onclick = elegir('inImagenes');
+    for (const id of ['inPdf', 'inPdfUno']) {
+        $(id).onchange = (ev) => { const archivos = [...ev.target.files]; ev.target.value = ''; agregarPdfs(archivos); };
+    }
+    $('inImagenes').onchange = (ev) => { const archivos = [...ev.target.files]; ev.target.value = ''; agregarImagenes(archivos); };
+    $('btnGuardarPdf').onclick = abrirPdf;
+    $('pdfBorrarTodo').onclick = () => { if (confirm('¿Sacar todas las páginas y empezar de nuevo?')) vaciarPaginas(); };
+
+    $('formPdf').onsubmit = (ev) => (modo === 'pdf' ? guardarHerramientas(ev) : crearPdf(ev));
     $('pdfCancelar').onclick = () => { $('dlgPdf').hidden = true; };
     $('btnCompartir').onclick = compartir;
     $('btnNuevo').onclick = nuevoDocumento;
@@ -676,7 +935,8 @@ async function recuperar() {
 }
 
 conectar();
-pintar();
+try { if (localStorage.getItem('scanerfree_modo') === 'pdf') modo = 'pdf'; } catch (e) { /* sin guardar */ }
+cambiarModo(modo);
 recuperar();
 // OpenCV pesa: se empieza a cargar apenas abre la app, así está lista para la primera foto
 setTimeout(() => cargarCv().catch(() => {}), 300);

@@ -12,6 +12,7 @@ Escáner de documentos **gratis, sin publicidad y sin cuenta**. Le sacás foto a
 - Girar, reordenar y sacar hojas
 - PDF con el texto reconocido (OCR en español) invisible encima de la imagen
 - Compartir directo (WhatsApp, mail, Drive…) o descargar
+- **Herramientas PDF**: unir varios PDF, eliminar páginas, girarlas y reordenarlas, y crear un PDF desde fotos. Las páginas se copian tal cual: el texto y la calidad no cambian
 - Se instala como app y anda sin internet
 - Si el navegador se cierra mientras sacás la foto, las hojas quedan guardadas en el celular
 
@@ -19,7 +20,7 @@ Escáner de documentos **gratis, sin publicidad y sin cuenta**. Le sacás foto a
 
 Es una página web común (HTML, CSS y JavaScript, sin compilar nada) que se instala como app (PWA).
 
-- `app.js` — toda la lógica: detección de bordes y enderezado con OpenCV.js, filtros, editor de esquinas, OCR con Tesseract.js y PDF con pdf-lib
+- `app.js` — toda la lógica: detección de bordes y enderezado con OpenCV.js, filtros, editor de esquinas, OCR con Tesseract.js, PDF con pdf-lib y las herramientas PDF (las miniaturas las dibuja pdf.js)
 - `sw.js` — guarda la app en el celular para que ande sin internet (al cambiar archivos, subir `VERSION`)
 - `vendor/` — las librerías, incluidas tal cual (ver [vendor/LICENCIAS.md](vendor/LICENCIAS.md))
 

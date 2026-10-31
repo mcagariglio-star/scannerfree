@@ -25,6 +25,12 @@
     </header>
 
     <main>
+        <div class="modos" role="tablist" aria-label="Qué querés hacer">
+            <button type="button" role="tab" id="modoEscanear" aria-selected="true" aria-controls="vistaEscaner">Escanear</button>
+            <button type="button" role="tab" id="modoPdf" aria-selected="false" aria-controls="vistaPdf">Herramientas PDF</button>
+        </div>
+
+        <div id="vistaEscaner" role="tabpanel" aria-labelledby="modoEscanear">
         <!-- Sin hojas todavía -->
         <section id="vacio" class="vacio">
             <!-- Lo que hace la app, en una animación: la hoja torcida se endereza y se escanea -->
@@ -76,6 +82,38 @@
             <ol class="hojas" id="hojas"></ol>
             <p class="ayuda">Tocá una hoja para corregir los bordes, girarla o cambiarle el filtro.</p>
         </section>
+        </div>
+
+        <!-- Herramientas PDF: unir, eliminar páginas y crear desde fotos. Las tres usan la misma mesa de páginas -->
+        <div id="vistaPdf" role="tabpanel" aria-labelledby="modoPdf" hidden>
+            <section id="pdfVacio" class="vacio-pdf">
+                <h1>Arreglá tus PDF sin subirlos a ningún lado.</h1>
+                <div class="herramientas">
+                    <button class="herramienta unir" type="button" id="hUnir">
+                        <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h7v9H4zM13 11h7v9h-7z"/><path d="M11 8.5h3.5V11M13 15.5H9.5V13"/></svg></span>
+                        <span><b>Unir PDF</b><small>Juntá varios PDF en uno solo y elegí el orden.</small></span>
+                    </button>
+                    <button class="herramienta eliminar" type="button" id="hEliminar">
+                        <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9.5 12.5l5 5M14.5 12.5l-5 5"/></svg></span>
+                        <span><b>Eliminar páginas</b><small>Abrí un PDF y sacale las hojas que sobran.</small></span>
+                    </button>
+                    <button class="herramienta fotos" type="button" id="hFotos">
+                        <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="m4 16 5-5 4 4 2-2 5 5"/><circle cx="15.5" cy="9.5" r="1.5"/></svg></span>
+                        <span><b>Crear PDF desde fotos</b><small>Pasá fotos o imágenes a un PDF, tal cual están.</small></span>
+                    </button>
+                </div>
+                <p class="ayuda centro">Los archivos se abren en tu celular: no se suben a internet.</p>
+            </section>
+
+            <section id="pdfTrabajo" hidden>
+                <div class="encabezado-doc">
+                    <h2 id="pdfCuenta">1 página</h2>
+                    <button class="btn chico texto" type="button" id="pdfBorrarTodo">Empezar de nuevo</button>
+                </div>
+                <p class="ayuda">Ordená con las flechas, girá con ↻ y eliminá con 🗑. Podés sumar más PDF o fotos desde abajo.</p>
+                <ol class="hojas" id="pdfPaginas"></ol>
+            </section>
+        </div>
 
         <!-- El PDF listo -->
         <section id="resultado" class="tarjeta" hidden>
@@ -92,7 +130,27 @@
     </main>
 
     <!-- Abajo, siempre a mano -->
-    <nav class="acciones">
+    <nav class="acciones" id="accionesPdf" hidden>
+        <input type="file" id="inPdf" accept="application/pdf,.pdf" multiple hidden>
+        <input type="file" id="inPdfUno" accept="application/pdf,.pdf" hidden>
+        <input type="file" id="inImagenes" accept="image/*" multiple hidden>
+        <button class="lateral" type="button" id="btnImagenes">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="m4 16 5-5 4 4 2-2 5 5"/><circle cx="15.5" cy="9.5" r="1.5"/></svg>
+            <span>Sumar fotos</span>
+        </button>
+        <button class="disparador" type="button" id="btnAgregarPdf">
+            <span class="aro" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M12 11v6M9 14h6"/></svg>
+            </span>
+            <span>Sumar PDF</span>
+        </button>
+        <button class="lateral" type="button" id="btnGuardarPdf" disabled>
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19h14"/></svg>
+            <span>Guardar PDF</span>
+        </button>
+    </nav>
+
+    <nav class="acciones" id="accionesEscaner">
         <input type="file" id="inCamara" accept="image/*" capture="environment" hidden>
         <input type="file" id="inGaleria" accept="image/*" multiple hidden>
         <button class="lateral" type="button" id="btnGaleria">
@@ -152,7 +210,7 @@
             <h2 id="pdfTitulo">Crear el PDF</h2>
             <label for="pdfNombre">Nombre</label>
             <input type="text" id="pdfNombre" maxlength="80" autocomplete="off">
-            <label class="check"><input type="checkbox" id="pdfOcr" checked> Reconocer el texto (así se puede buscar y copiar)</label>
+            <label class="check" id="pdfOcrFila"><input type="checkbox" id="pdfOcr" checked> Reconocer el texto (así se puede buscar y copiar)</label>
             <div class="progreso" id="pdfProgreso" hidden><div id="pdfBarra"></div></div>
             <p class="ayuda" id="pdfEstado"></p>
             <div class="fila-botones">
