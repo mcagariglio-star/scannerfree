@@ -1102,7 +1102,9 @@ async function abrirTexto(archivo) {
         faltan.forEach((n) => { paginas[n - 1] = null; });
         textoTarea = { nombre: archivo.name, bytes, paginas, faltan };
         const n = res.pageCount;
-        $('textoTipo').textContent = `${TIPOS_PDF[res.pdfType] || 'PDF'}, ${n} ${n === 1 ? 'página' : 'páginas'}`;
+        // Escaneado pero con el texto ya reconocido (por un escáner o por esta app): se dice así, no «de imágenes»
+        const tipo = conCapa.length && !faltan.length && res.pdfType !== 'TextBased' ? 'PDF escaneado, con el texto ya reconocido' : (TIPOS_PDF[res.pdfType] || 'PDF');
+        $('textoTipo').textContent = `${tipo}, ${n} ${n === 1 ? 'página' : 'páginas'}`;
         estadoTexto('');
         if (textoModo === 'buscable') return hacerBuscable();
         mostrarTextoExtraido();
