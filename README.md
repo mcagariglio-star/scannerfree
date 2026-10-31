@@ -53,23 +53,37 @@ Le sacás foto a cada hoja: la app encuentra los bordes, la endereza, la deja pr
 - Se instala como app y anda sin internet
 - Si el navegador se cierra mientras sacás la foto, las hojas quedan guardadas en el celular
 
-## Cómo está hecha
+## Cómo usarla
 
-Es una página web común (HTML, CSS y JavaScript, sin compilar nada) que se instala como app (PWA).
+1. En el celular, abrí **https://mcagariglio-star.github.io/scannerfree/** (en Chrome, Edge o Safari).
+2. Para tenerla como una app más: en Chrome tocá los tres puntitos → **Agregar a la pantalla principal** (o «Instalar app»); en el iPhone, en Safari: **Compartir** → **Agregar a inicio**.
+3. La primera vez se prepara para andar sin internet (unos 25 MB, conviene tener Wi-Fi). Después abre al instante, aunque no tengas señal.
 
-- `app.js` — toda la lógica: detección de bordes y enderezado con OpenCV.js, filtros, editor de esquinas, OCR con Tesseract.js, PDF con pdf-lib y las herramientas PDF (las miniaturas las dibuja pdf.js)
-- `sw.js` — guarda la app en el celular para que ande sin internet (al cambiar archivos, subir `VERSION`)
-- `vendor/` — las librerías, incluidas tal cual (ver [vendor/LICENCIAS.md](vendor/LICENCIAS.md))
+No hace falta crear una cuenta ni dar ningún dato.
 
-La primera vez que se abre baja unos 25 MB (el detector de bordes y el OCR); después ya queda en el celular.
+## Para quien quiera colaborar
 
-## Probarla en la PC
+ScannerFree es una página web común (HTML, CSS y JavaScript, sin nada que compilar) que se instala como app. Si querés mejorarla, traducirla o corregir algo, ¡bienvenido!
+
+**Qué hay en cada archivo**
+
+- `index.html` y `app.css`: las pantallas y el diseño.
+- `app.js`: todo lo que hace la app. Detecta los bordes y endereza la hoja con OpenCV.js, reconoce el texto con Tesseract.js, arma los PDF con pdf-lib, muestra las páginas con pdf.js y lee el texto de un PDF con pdf-inspector.
+- `sw.js`: guarda la app en el celular para que ande sin internet. Si cambiás algún archivo, subí el número de `VERSION` para que los celulares bajen la versión nueva.
+- `vendor/`: las librerías, incluidas tal cual para no depender de otros sitios (ver [vendor/LICENCIAS.md](vendor/LICENCIAS.md)).
+
+**Probar tus cambios en la computadora**
+
+Hace falta tener Python. En la carpeta del proyecto, escribí:
 
 ```
 python herramientas/servidor.py
 ```
 
-Abrí `http://localhost:8030`. Desde el celular, en la misma red Wi-Fi, abrí la dirección que muestra el servidor. Instalarla, usarla sin internet y el botón «Compartir» necesitan HTTPS; por eso andan en `localhost` y en la versión publicada, pero no en la dirección de la red local.
+Eso prende un servidor de prueba que solo se ve dentro de tu casa; no publica nada. Después:
+
+- **En la misma computadora**, abrí `http://localhost:8030`. Ahí anda todo.
+- **Desde el celular**, conectado al mismo Wi-Fi, abrí la dirección que muestra el servidor (algo como `http://192.168.1.51:8030`). Ahí se puede escanear, armar PDF y descargarlos, pero no instalarla, usarla sin internet ni compartir. Los navegadores solo permiten eso en direcciones seguras (las que empiezan con `https`), y la dirección del Wi-Fi de casa no lo es. En la versión publicada anda todo.
 
 ## Apoyar el proyecto
 
