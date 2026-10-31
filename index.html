@@ -54,6 +54,16 @@
         <span class="sello"><svg aria-hidden="true"><use href="#i-escudo"/></svg>Todo queda en tu celular</span>
     </header>
 
+    <!-- Solo la primera vez: la app se guarda en el celular para andar sin internet -->
+    <div class="preparando" id="preparando" role="status" aria-live="polite" hidden>
+        <span class="preparando-icono" aria-hidden="true"><svg><use href="#i-descargar"/></svg></span>
+        <span class="preparando-texto">
+            <b id="preparandoTitulo">Preparando ScannerFree para que funcione sin internet</b>
+            <small id="preparandoDetalle">Esto pasa solo la primera vez. Mientras tanto, ya la podés usar.</small>
+            <span class="progreso"><span id="preparandoBarra"></span></span>
+        </span>
+    </div>
+
     <main>
         <!-- ── Inicio ── -->
         <div id="vistaInicio" class="vista">

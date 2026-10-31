@@ -101,6 +101,8 @@ function cargarCv() {
 }
 
 let ocrListo = null, ocrProgreso = null;
+// La primera vez el reconocimiento de texto se prepara (en la versión instalada ya está en el celular)
+const avisoOcr = () => (ocrListo ? 'Preparando el reconocimiento de texto…' : 'Preparando el reconocimiento de texto (la primera vez tarda un poco más)…');
 function cargarOcr() {
     if (!ocrListo) {
         const base = new URL('vendor/', location.href).href;
@@ -704,7 +706,7 @@ async function crearPdf(ev) {
         pdf.setProducer('ScannerFree');
         let fuente = null, letras = null, ocr = null, palabras = 0;
         if (conOcr) {
-            estado('Preparando el reconocimiento de texto…');
+            estado(avisoOcr());
             fuente = await pdf.embedFont(PDFLib.StandardFonts.Helvetica);
             letras = new Set(fuente.getCharacterSet());
             ocr = await cargarOcr();
@@ -1067,7 +1069,8 @@ async function abrirTexto(archivo) {
     $('textoTipo').textContent = '';
     $('textoArchivo').hidden = false;
     $('textoElegir').lastChild.textContent = 'Elegir otro PDF';
-    estadoTexto('Leyendo el PDF…');
+    // El lector de PDF se baja la primera vez que se usa (unos 6 MB) y después queda en el celular
+    estadoTexto(inspectorListo ? 'Leyendo el PDF…' : 'Preparando el lector de PDF (solo la primera vez)…');
     try {
         const bytes = new Uint8Array(await archivo.arrayBuffer());
         const insp = await cargarInspector();
@@ -1162,7 +1165,7 @@ async function reconocerFaltantes() {
     if (!t || !t.faltan.length) return;
     $('textoOcrBtn').disabled = true;
     try {
-        estadoTexto('Preparando el reconocimiento de texto…');
+        estadoTexto(avisoOcr());
         const pdfjs = await cargarPdfjs();
         const vista = await pdfjs.getDocument({ data: t.bytes.slice(), isEvalSupported: false }).promise;
         for (const [k, n] of t.faltan.entries()) {
@@ -1190,7 +1193,7 @@ async function hacerBuscable() {
         return;
     }
     try {
-        estadoTexto('Preparando el reconocimiento de texto…');
+        estadoTexto(avisoOcr());
         barraTexto(0);
         const [pdfjs] = await Promise.all([cargarPdfjs(), window.PDFLib ? null : cargarScript('vendor/pdf-lib.min.js')]);
         const P = PDFLib;
@@ -1579,6 +1582,26 @@ recuperar();
 // OpenCV pesa: se empieza a cargar apenas abre la app, así está lista para la primera foto
 setTimeout(() => cargarCv().catch(() => {}), 300);
 
+// La primera vez la app se guarda entera en el celular (unos 25 MB) para andar sin internet. En vez de un
+// «Descargando…» que confunde, se explica qué pasa y que es una sola vez; las actualizaciones van sin aviso.
 if ('serviceWorker' in navigator && window.isSecureContext) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    const aviso = $('preparando');
+    navigator.serviceWorker.onmessage = (ev) => {
+        const m = ev.data || {};
+        if (m.tipo === 'preparando') {
+            aviso.hidden = false;
+            $('preparandoBarra').style.width = `${Math.round(m.avance * 100)}%`;
+        } else if (m.tipo === 'preparada') {
+            aviso.hidden = false;
+            aviso.classList.add('lista');
+            $('preparandoTitulo').textContent = 'Listo: ScannerFree ya funciona sin internet';
+            $('preparandoDetalle').textContent = 'La próxima vez abre al instante, aunque no tengas señal.';
+            setTimeout(() => { aviso.hidden = true; }, 5000);
+        }
+    };
+    const primeraVez = !navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js').then((reg) => {
+        // Se muestra apenas empieza, sin esperar el primer archivo
+        if (primeraVez && reg.installing && !reg.active) aviso.hidden = false;
+    }).catch(() => {});
 }

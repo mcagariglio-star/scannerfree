@@ -1,6 +1,6 @@
 // Guarda la app entera en el celular la primera vez, así después anda sin internet.
 // Al cambiar cualquier archivo, subir VERSION para que los celulares bajen la nueva.
-const VERSION = 'scannerfree-v10';
+const VERSION = 'scannerfree-v11';
 const ARCHIVOS = [
     './', 'index.html', 'app.css', 'app.js', 'manifest.json',
     'fuentes/bricolage.woff2',
@@ -13,11 +13,36 @@ const ARCHIVOS = [
     'vendor/pdfjs/pdf.min.mjs', 'vendor/pdfjs/pdf.worker.min.mjs', 'vendor/qrcode/qrcode.js',
 ];
 
+// Más o menos cuánto pesa cada archivo grande (en KB), para que la barra de «Preparando» avance parejo
+const PESOS = {
+    'vendor/opencv.js': 10600, 'vendor/lang/spa.traineddata.gz': 2050, 'vendor/pdfjs/pdf.worker.min.mjs': 1380,
+    'vendor/tesseract-core/tesseract-core-lstm.wasm.js': 3800, 'vendor/tesseract-core/tesseract-core-simd-lstm.wasm.js': 3800,
+    'vendor/tesseract-core/tesseract-core-relaxedsimd-lstm.wasm.js': 3800, 'vendor/pdf-lib.min.js': 510, 'vendor/pdfjs/pdf.min.mjs': 390,
+};
+const peso = (a) => PESOS[a] || 40;
+
+// Le cuenta a la app cómo va, para el aviso de la primera vez («Preparando ScannerFree para que funcione sin internet»)
+async function contar(mensaje) {
+    for (const cliente of await self.clients.matchAll({ includeUncontrolled: true, type: 'window' })) cliente.postMessage(mensaje);
+}
+
 self.addEventListener('install', (ev) => {
-    // cache: 'reload' pide cada archivo de nuevo al servidor: sin eso, una actualización podía guardar la copia vieja
-    ev.waitUntil(caches.open(VERSION)
-        .then((c) => c.addAll(ARCHIVOS.map((a) => new Request(a, { cache: 'reload' }))))
-        .then(() => self.skipWaiting()));
+    const primeraVez = !self.registration.active;   // si ya había una versión, es una actualización: va sin aviso
+    ev.waitUntil((async () => {
+        const cache = await caches.open(VERSION);
+        const total = ARCHIVOS.reduce((s, a) => s + peso(a), 0);
+        let hecho = 0;
+        await Promise.all(ARCHIVOS.map(async (a) => {
+            // cache: 'reload' pide cada archivo de nuevo al servidor: sin eso, una actualización podía guardar la copia vieja
+            const resp = await fetch(new Request(a, { cache: 'reload' }));
+            if (!resp.ok) throw new Error(`No se pudo bajar ${a}`);
+            await cache.put(a, resp);
+            hecho += peso(a);
+            if (primeraVez) contar({ tipo: 'preparando', avance: hecho / total });
+        }));
+        if (primeraVez) contar({ tipo: 'preparada' });
+        self.skipWaiting();
+    })());
 });
 
 self.addEventListener('activate', (ev) => {

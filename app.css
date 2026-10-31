@@ -491,3 +491,17 @@ div.mini { cursor: grab; }
     filter: drop-shadow(0 14px 24px rgba(0, 0, 0, .35));
 }
 .hoja.fantasma .barra-hoja, .hoja.fantasma .pie-hoja { visibility: hidden; }
+
+/* ── Aviso de la primera vez: «Preparando ScannerFree para que funcione sin internet» ── */
+.preparando {
+    display: flex; align-items: center; gap: 12px; max-width: 728px; margin: 12px auto 0; padding: 12px 14px;
+    width: calc(100% - 32px); background: var(--superficie); border: 1px solid var(--linea); border-radius: 16px; box-shadow: var(--sombra);
+}
+.preparando-icono { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--rojo-suave); color: var(--rojo-texto); }
+.preparando.lista .preparando-icono { background: var(--rojo); color: var(--sobre-rojo); }
+.preparando-texto { flex: 1; min-width: 0; }
+.preparando b { display: block; font-size: .92rem; font-weight: 800; line-height: 1.25; }
+.preparando small { display: block; color: var(--grafito); font-size: .82rem; line-height: 1.3; margin-top: 2px; }
+.preparando .progreso { display: block; height: 6px; margin-top: 8px; }
+.preparando .progreso span { display: block; height: 100%; width: 0; background: var(--rojo); border-radius: 99px; transition: width .3s; }
+.preparando.lista .progreso { display: none; }
