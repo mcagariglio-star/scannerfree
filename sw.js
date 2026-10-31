@@ -1,6 +1,6 @@
 // Guarda la app entera en el celular la primera vez, así después anda sin internet.
 // Al cambiar cualquier archivo, subir VERSION para que los celulares bajen la nueva.
-const VERSION = 'scannerfree-v7';
+const VERSION = 'scannerfree-v8';
 const ARCHIVOS = [
     './', 'index.html', 'app.css', 'app.js', 'manifest.json',
     'fuentes/bricolage.woff2',
@@ -14,7 +14,10 @@ const ARCHIVOS = [
 ];
 
 self.addEventListener('install', (ev) => {
-    ev.waitUntil(caches.open(VERSION).then((c) => c.addAll(ARCHIVOS)).then(() => self.skipWaiting()));
+    // cache: 'reload' pide cada archivo de nuevo al servidor: sin eso, una actualización podía guardar la copia vieja
+    ev.waitUntil(caches.open(VERSION)
+        .then((c) => c.addAll(ARCHIVOS.map((a) => new Request(a, { cache: 'reload' }))))
+        .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (ev) => {
