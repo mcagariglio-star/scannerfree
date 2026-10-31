@@ -1001,7 +1001,20 @@ async function abrirTexto(archivo) {
         } else if (res.pageCount) {
             paginas[0] = textoLegible(res.markdown);
         }
-        const faltan = [...new Set(res.pagesNeedingOcr || [])].filter((n) => n >= 1 && n <= res.pageCount).sort((a, b) => a - b);
+        let faltan = [...new Set(res.pagesNeedingOcr || [])].filter((n) => n >= 1 && n <= res.pageCount).sort((a, b) => a - b);
+        // pdf-inspector no usa el texto invisible (el que dejan los escáneres y el OCR de esta app): en esas páginas
+        // se lee con pdf.js, y si trae texto no hace falta reconocerlo de nuevo ni ponerle otra capa
+        const invisibles = new Set((res.ocrReasonsByPage || []).filter((r) => (r.reasons || []).includes('invisible_text_layer')).map((r) => r.page));
+        const conCapa = faltan.filter((n) => invisibles.has(n));
+        if (conCapa.length) {
+            const vista = await (await cargarPdfjs()).getDocument({ data: bytes.slice(), isEvalSupported: false }).promise;
+            for (const n of conCapa) {
+                const { items } = await (await vista.getPage(n)).getTextContent();
+                const texto = items.map((it) => it.str + (it.hasEOL ? '\n' : '')).join('').replace(/[ \t]+\n/g, '\n').trim();
+                if (texto) { paginas[n - 1] = texto; faltan = faltan.filter((k) => k !== n); }
+            }
+            vista.destroy();
+        }
         faltan.forEach((n) => { paginas[n - 1] = null; });
         textoTarea = { nombre: archivo.name, bytes, paginas, faltan };
         const n = res.pageCount;
