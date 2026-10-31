@@ -479,3 +479,4 @@ div.mini { cursor: default; }
 .apoyar-dlg #apoyarCopiar { width: 100%; }
 .apoyar-dlg .advertencia { font-size: .84rem; color: var(--grafito); margin: 12px 0 4px; text-align: left; }
 .apoyar-dlg #apoyarCerrar { width: 100%; }
+.pie a { color: var(--rojo-texto); font-weight: 700; }
