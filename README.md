@@ -37,6 +37,16 @@ python herramientas/servidor.py
 
 Abrí `http://localhost:8030`. Desde el celular, en la misma red Wi-Fi, abrí la dirección que muestra el servidor. Instalarla, usarla sin internet y el botón «Compartir» necesitan HTTPS; por eso andan en `localhost` y en la versión publicada, pero no en la dirección de la red local.
 
+## Apoyar el proyecto
+
+ScannerFree es gratis y sin publicidad. Si te sirve y querés ayudar a que este y otros proyectos sigan creciendo, podés aportar en cripto:
+
+| Red | Dirección |
+|---|---|
+| **BNB Smart Chain (BEP20)** | `0xE7C0f00a914EcBc1C73E2175BA66af0e4003Fba3` |
+
+Mandá **solo por la red BNB Smart Chain (BEP20)**: BNB o tokens BEP20 como USDT o USDC. Si lo enviás por otra red, el aporte se puede perder.
+
 ## Licencia
 
 [GPL-3.0](LICENSE). Podés usarla, copiarla, cambiarla y compartirla; si distribuís una versión cambiada, tiene que seguir siendo libre y con el código abierto.

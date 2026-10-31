@@ -41,6 +41,7 @@
         <symbol id="i-texto" viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4M9 11h6M12 11v6.5"/></symbol>
         <symbol id="i-buscar" viewBox="0 0 24 24"><path d="M11 20.5H5V3.5h8l4 4v3"/><path d="M13 3.5v4h4"/><circle cx="15.5" cy="15.5" r="3.5"/><path d="m18 18 2.5 2.5"/></symbol>
         <symbol id="i-copiar" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="12" rx="2"/><path d="M15.5 8.5V5.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2"/></symbol>
+        <symbol id="i-corazon" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.4-7.5-10.1A4.4 4.4 0 0 1 12 7.3a4.4 4.4 0 0 1 7.5 2.6C19.5 15.6 12 20 12 20z"/></symbol>
         <symbol id="i-escudo" viewBox="0 0 24 24"><path d="M12 3.5 19 6v5.5c0 4.4-3 7.7-7 9-4-1.3-7-4.6-7-9V6z"/><path d="m8.8 12 2.2 2.2 4.2-4.4"/></symbol>
     </svg>
 
@@ -145,6 +146,13 @@
                     <li class="paso"><span class="paso-icono"><svg aria-hidden="true"><use href="#i-pdf"/></svg></span><span><b><i>3.</i> Guardá en PDF</b><small>Con el texto reconocido, para buscar y copiar</small></span></li>
                     <li class="paso final"><span class="paso-icono"><svg aria-hidden="true"><use href="#i-check"/></svg></span><span><b>¡Listo!</b><small>Compartilo o encontralo en Mis documentos</small></span></li>
                 </ol>
+            </section>
+
+            <section class="apoyar" aria-labelledby="apoyarTitulo">
+                <span class="apoyar-icono" aria-hidden="true"><svg><use href="#i-corazon"/></svg></span>
+                <h2 id="apoyarTitulo">¿Querés apoyar este y otros proyectos?</h2>
+                <p>ScannerFree es gratis y sin publicidad. Si te sirve, podés aportar para que siga creciendo.</p>
+                <button class="btn primario" type="button" id="btnApoyar"><svg aria-hidden="true"><use href="#i-corazon"/></svg>Apoyar</button>
             </section>
         </div>
 
@@ -369,6 +377,20 @@
                 <button type="button" id="docBorrar" class="peligro"><svg aria-hidden="true"><use href="#i-basura"/></svg>Borrar</button>
             </div>
             <button class="btn texto" type="button" id="docCerrar">Cerrar</button>
+        </div>
+    </div>
+
+    <!-- Apoyar el proyecto: la dirección para aportes (la misma de Tessis) -->
+    <div class="dialogo" id="dlgApoyar" hidden role="dialog" aria-modal="true" aria-labelledby="apoyarDlgTitulo">
+        <div class="tarjeta hoja-abajo apoyar-dlg">
+            <h2 id="apoyarDlgTitulo">Apoyar el proyecto</h2>
+            <p class="ayuda">Podés aportar en cripto: BNB o tokens BEP20 como USDT o USDC. ¡Gracias!</p>
+            <div class="qr" id="apoyarQr" aria-hidden="true"></div>
+            <span class="red">Red BNB Smart Chain (BEP20)</span>
+            <code class="direccion" id="apoyarDireccion">0xE7C0f00a914EcBc1C73E2175BA66af0e4003Fba3</code>
+            <button class="btn primario" type="button" id="apoyarCopiar"><svg aria-hidden="true"><use href="#i-copiar"/></svg>Copiar dirección</button>
+            <p class="advertencia">Mandá <b>solo por la red BNB Smart Chain (BEP20)</b>. Si lo enviás por otra red, el aporte se puede perder. Revisá la dirección antes de confirmar.</p>
+            <button class="btn texto" type="button" id="apoyarCerrar">Cerrar</button>
         </div>
     </div>
 

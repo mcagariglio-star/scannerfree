@@ -1,6 +1,6 @@
 // Guarda la app entera en el celular la primera vez, así después anda sin internet.
 // Al cambiar cualquier archivo, subir VERSION para que los celulares bajen la nueva.
-const VERSION = 'scannerfree-v4';
+const VERSION = 'scannerfree-v5';
 const ARCHIVOS = [
     './', 'index.html', 'app.css', 'app.js', 'manifest.json',
     'fuentes/bricolage.woff2',
@@ -10,7 +10,7 @@ const ARCHIVOS = [
     'vendor/tesseract-core/tesseract-core-simd-lstm.wasm.js',
     'vendor/tesseract-core/tesseract-core-relaxedsimd-lstm.wasm.js',
     'vendor/lang/spa.traineddata.gz',
-    'vendor/pdfjs/pdf.min.mjs', 'vendor/pdfjs/pdf.worker.min.mjs',
+    'vendor/pdfjs/pdf.min.mjs', 'vendor/pdfjs/pdf.worker.min.mjs', 'vendor/qrcode/qrcode.js',
 ];
 
 self.addEventListener('install', (ev) => {

@@ -1133,7 +1133,11 @@ async function hacerBuscable() {
 }
 
 async function copiarTexto() {
-    const texto = textoCompleto();
+    await copiar(textoCompleto());
+    estadoTexto('Texto copiado.');
+}
+
+async function copiar(texto) {
     try {
         await navigator.clipboard.writeText(texto);
     } catch (e) {
@@ -1148,7 +1152,29 @@ async function copiarTexto() {
         document.execCommand('copy');
         area.remove();
     }
-    estadoTexto('Texto copiado.');
+}
+
+// ── Apoyar el proyecto ──
+
+async function abrirApoyar() {
+    $('dlgApoyar').hidden = false;
+    if ($('apoyarQr').firstChild) return;
+    try {
+        if (!window.qrcode) await cargarScript('vendor/qrcode/qrcode.js');
+        const qr = qrcode(0, 'M');
+        qr.addData($('apoyarDireccion').textContent.trim());
+        qr.make();
+        $('apoyarQr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+    } catch (e) {
+        $('apoyarQr').hidden = true;
+    }
+}
+
+async function copiarDireccion() {
+    await copiar($('apoyarDireccion').textContent.trim());
+    const boton = $('apoyarCopiar');
+    boton.lastChild.textContent = '¡Copiada!';
+    setTimeout(() => { boton.lastChild.textContent = 'Copiar dirección'; }, 2000);
 }
 
 async function agregarPdfs(archivos) {
@@ -1371,6 +1397,9 @@ function conectar() {
     $('textoElegir').onclick = () => $('inPdfTexto').click();
     $('inPdfTexto').onchange = (ev) => { const [archivo] = ev.target.files; ev.target.value = ''; if (archivo) abrirTexto(archivo); };
     $('textoOcrBtn').onclick = reconocerFaltantes;
+    $('btnApoyar').onclick = abrirApoyar;
+    $('apoyarCopiar').onclick = copiarDireccion;
+    $('apoyarCerrar').onclick = () => { $('dlgApoyar').hidden = true; };
     $('textoCopiar').onclick = copiarTexto;
     $('textoDescargar').onclick = () => descargar(new Blob([textoCompleto()], { type: 'text/plain;charset=utf-8' }),
         `${textoTarea.nombre.replace(/\.pdf$/i, '')}.txt`);
@@ -1397,6 +1426,7 @@ function conectar() {
         if (!$('editor').hidden) cerrarEditor();
         else if (!$('visor').hidden) cerrarVisor();
         else if (!$('dlgDoc').hidden) cerrarDoc();
+        else if (!$('dlgApoyar').hidden) $('dlgApoyar').hidden = true;
         else if (!$('dlgPdf').hidden && !$('pdfCrear').disabled) $('pdfCancelar').click();
     });
 }
