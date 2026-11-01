@@ -875,9 +875,9 @@ async function pintarDocumentos() {
     const fila = (d) => {
         const li = document.createElement('li');
         li.innerHTML = `<button class="documento" type="button">
-            ${d.mini ? '<img alt="">' : `<span class="sin-mini"><svg><use href="#${esWord(d) ? 'i-word' : 'i-pdf'}"/></svg></span>`}
+            ${d.mini ? '<img alt="">' : `<span class="sin-mini${esWord(d) ? ' hoja-word' : ''}"><svg><use href="#${esWord(d) ? 'i-hoja-word' : 'i-pdf'}"/></svg></span>`}
             <span class="datos"><b></b><small></small></span>
-            <span class="etiqueta-pdf">${esWord(d) ? 'WORD' : 'PDF'}</span>
+            <span class="etiqueta-pdf${esWord(d) ? ' word' : ''}">${esWord(d) ? 'WORD' : 'PDF'}</span>
         </button>`;
         if (d.mini) {
             const url = URL.createObjectURL(d.mini);
@@ -1276,13 +1276,13 @@ const CONVERTIR = {
         titulo: 'Word a PDF',
         descripcion: 'Elegí un archivo de Word (.docx) y lo paso a PDF con su diseño. El texto se puede seguir buscando y copiando. No se sube a ningún lado.',
         acepta: '.docx,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword',
-        boton: 'Elegir un Word', icono: '#i-word',
+        boton: 'Elegir un Word', icono: '#i-word-pdf',
     },
     'pdf-word': {
         titulo: 'PDF a Word',
         descripcion: 'Elegí un PDF y lo paso a Word para que lo puedas editar: con el texto, los títulos, las listas y las tablas. No copia el diseño exacto ni las imágenes. No se sube a ningún lado.',
         acepta: 'application/pdf,.pdf',
-        boton: 'Elegir un PDF', icono: '#i-pdf',
+        boton: 'Elegir un PDF', icono: '#i-pdf-word',
     },
 };
 let convModo = 'word-pdf';

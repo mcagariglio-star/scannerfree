@@ -514,3 +514,11 @@ div.mini { cursor: grab; }
 }
 .conv-lienzo:empty { display: none; }
 .conv-lienzo section.docx { margin: 0 0 20px; box-shadow: none; }
+
+/* ── Íconos de convertir: hojitas de colores (azul con W = Word, roja = PDF) ── */
+.icono-hojas { background: var(--fondo) !important; box-shadow: inset 0 0 0 1px var(--linea); }
+.icono-hojas svg, .sin-mini.hoja-word svg { stroke: none; fill: initial; }
+.herramienta-fila .icono-hojas svg, .archivo-texto .icono-hojas svg { width: 40px; height: 40px; }
+.sin-mini.hoja-word svg { width: 40px; height: 40px; }
+.documento .etiqueta-pdf.word { color: #1f56b8; background: #e3ecfc; }
+@media (prefers-color-scheme: dark) { .documento .etiqueta-pdf.word { color: #9cbcf5; background: #1c2a47; } }
