@@ -505,3 +505,12 @@ div.mini { cursor: grab; }
 .preparando .progreso { display: block; height: 6px; margin-top: 8px; }
 .preparando .progreso span { display: block; height: 100%; width: 0; background: var(--rojo); border-radius: 99px; transition: width .3s; }
 .preparando.lista .progreso { display: none; }
+
+/* ── Convertir ── */
+/* El Word se dibuja acá (tapado por el aviso «Convirtiendo…») para sacarle las páginas */
+.conv-lienzo {
+    position: absolute; left: 0; top: 0; z-index: 15; background: #fff; color: #000;
+    font: 16px/1.15 Calibri, Carlito, Arial, sans-serif; letter-spacing: normal;
+}
+.conv-lienzo:empty { display: none; }
+.conv-lienzo section.docx { margin: 0 0 20px; box-shadow: none; }

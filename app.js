@@ -625,9 +625,9 @@ async function guardarEditor() {
 
 // ── PDF ──
 
-function nombreArchivo(nombre) {
+function nombreArchivo(nombre, extension = 'pdf') {
     const limpio = (nombre || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim() || 'Documento';
-    return /\.pdf$/i.test(limpio) ? limpio : `${limpio}.pdf`;
+    return limpio.toLowerCase().endsWith(`.${extension}`) ? limpio : `${limpio}.${extension}`;
 }
 
 const hoy = () => new Date().toLocaleDateString('es-AR').replaceAll('/', '-');
@@ -758,10 +758,10 @@ async function entregar(blob, nombre, detalle, cantidad, miniUrl) {
     // Que el navegador no borre los documentos solo si se queda sin espacio
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     $('resultadoTexto').textContent = `«${nombre}»: ${detalle}` + (guardado !== null ? ' Quedó guardado en Mis documentos.' : '');
-    $('btnNuevo').textContent = modo === 'pdf' ? 'Empezar con otro PDF' : 'Escanear otro documento';
+    $('btnNuevo').textContent = { pdf: 'Empezar con otro PDF', convertir: 'Convertir otro archivo', texto: 'Elegir otro PDF' }[modo] || 'Escanear otro documento';
     $('btnDescargar').href = pdfListo.url;
     $('btnDescargar').download = pdfListo.nombre;
-    const archivo = new File([pdfListo.blob], pdfListo.nombre, { type: 'application/pdf' });
+    const archivo = new File([pdfListo.blob], pdfListo.nombre, { type: pdfListo.blob.type });
     $('btnCompartir').hidden = !(navigator.canShare && navigator.canShare({ files: [archivo] }));
     $('resultado').hidden = false;
     $('resultado').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -770,7 +770,7 @@ async function entregar(blob, nombre, detalle, cantidad, miniUrl) {
 
 async function compartir() {
     try {
-        const archivo = new File([pdfListo.blob], pdfListo.nombre, { type: 'application/pdf' });
+        const archivo = new File([pdfListo.blob], pdfListo.nombre, { type: pdfListo.blob.type });
         await navigator.share({ files: [archivo], title: pdfListo.nombre });
     } catch (e) {
         if (e.name !== 'AbortError') avisar('No pude compartirlo: usá «Descargar».', true);
@@ -780,7 +780,10 @@ async function compartir() {
 function nuevoDocumento() {
     $('resultado').hidden = true;
     $('pdfNombre').value = '';
-    if (modo === 'pdf') vaciarPaginas(); else empezarDeNuevo();
+    if (modo === 'pdf') vaciarPaginas();
+    else if (modo === 'convertir') { prepararConvertir(convModo); $('inConvertir').click(); }
+    else if (modo === 'texto') { prepararTexto(textoModo); $('inPdfTexto').click(); }
+    else empezarDeNuevo();
 }
 
 // ── Herramientas PDF: unir, eliminar páginas y crear desde fotos ──
@@ -809,7 +812,7 @@ function cargarPdfjs() {
 // ── Pantallas: inicio, escanear, herramientas PDF y mis documentos ──
 // Cada una tiene su dirección (#escanear, #pdf, #documentos): así el botón «atrás» del celular vuelve al inicio.
 
-const VISTAS = { inicio: 'vistaInicio', escanear: 'vistaEscaner', pdf: 'vistaPdf', texto: 'vistaTexto', documentos: 'vistaDocs' };
+const VISTAS = { inicio: 'vistaInicio', escanear: 'vistaEscaner', pdf: 'vistaPdf', texto: 'vistaTexto', convertir: 'vistaConvertir', documentos: 'vistaDocs' };
 let desdeInicio = false;   // si se llegó desde el inicio, «volver» es ir para atrás en el historial
 
 const vistaDeDireccion = () => (VISTAS[location.hash.slice(1)] ? location.hash.slice(1) : 'inicio');
@@ -834,6 +837,7 @@ function mostrarVista(nueva) {
     pintarPaginas();
     if (modo === 'pdf') cargarPdfjs().catch(() => {});
     if (modo === 'texto' && cambia && !textoTarea) prepararTexto(textoModo);
+    if (modo === 'convertir' && cambia && $('convArchivo').hidden) prepararConvertir(convModo);
     if (modo === 'inicio' || modo === 'documentos') pintarDocumentos();
 }
 
@@ -860,7 +864,9 @@ function fechaCorta(ms) {
     return d.toLocaleDateString('es-AR');
 }
 
-const detalleDoc = (d) => `${d.paginas} ${d.paginas === 1 ? 'página' : 'páginas'}, ${fechaCorta(d.fecha)}, ${tamano(d.blob)}`;
+// Los documentos guardados son PDF o Word (los de «PDF a Word»)
+const esWord = (d) => /word/.test(d.blob.type);
+const detalleDoc = (d) => (d.paginas ? `${d.paginas} ${d.paginas === 1 ? 'página' : 'páginas'}, ` : 'Word, ') + `${fechaCorta(d.fecha)}, ${tamano(d.blob)}`;
 
 async function pintarDocumentos() {
     docs = ((await db.documentos()) || []).sort((a, b) => b.fecha - a.fecha);
@@ -869,9 +875,9 @@ async function pintarDocumentos() {
     const fila = (d) => {
         const li = document.createElement('li');
         li.innerHTML = `<button class="documento" type="button">
-            ${d.mini ? '<img alt="">' : '<span class="sin-mini"><svg><use href="#i-pdf"/></svg></span>'}
+            ${d.mini ? '<img alt="">' : `<span class="sin-mini"><svg><use href="#${esWord(d) ? 'i-word' : 'i-pdf'}"/></svg></span>`}
             <span class="datos"><b></b><small></small></span>
-            <span class="etiqueta-pdf">PDF</span>
+            <span class="etiqueta-pdf">${esWord(d) ? 'WORD' : 'PDF'}</span>
         </button>`;
         if (d.mini) {
             const url = URL.createObjectURL(d.mini);
@@ -897,11 +903,13 @@ function abrirDoc(d) {
     if (d.mini) img.src = URL.createObjectURL(d.mini);
     $('docTitulo').textContent = d.nombre;
     $('docDetalle').textContent = detalleDoc(d);
+    // Un Word no se puede ver ni editar por páginas acá: se comparte o se baja
+    $('docVer').hidden = $('docEditar').hidden = esWord(d);
     $('dlgDoc').hidden = false;
 }
 
 const cerrarDoc = () => { $('dlgDoc').hidden = true; };
-const archivoDe = (d) => new File([d.blob], d.nombre, { type: 'application/pdf' });
+const archivoDe = (d) => new File([d.blob], d.nombre, { type: d.blob.type || 'application/pdf' });
 
 function descargar(blob, nombre) {
     const a = document.createElement('a');
@@ -975,9 +983,9 @@ async function editarDoc(d) {
 }
 
 async function renombrarDoc(d) {
-    const nuevo = prompt('Nuevo nombre', d.nombre.replace(/\.pdf$/i, ''));
+    const nuevo = prompt('Nuevo nombre', d.nombre.replace(/\.(pdf|docx)$/i, ''));
     if (!nuevo || !nuevo.trim()) return;
-    d.nombre = nombreArchivo(nuevo);
+    d.nombre = nombreArchivo(nuevo, esWord(d) ? 'docx' : 'pdf');
     await db.guardarDocumento(d);
     $('docTitulo').textContent = d.nombre;
     pintarDocumentos();
@@ -1256,6 +1264,375 @@ async function copiar(texto) {
     }
 }
 
+// ── Convertir: Word a PDF y PDF a Word ──
+// Word a PDF: docx-preview dibuja el Word como página web; html2canvas saca la foto de cada página y encima va el
+// texto invisible en el mismo lugar (así el PDF se puede buscar y copiar). Si una sección del Word es más larga
+// que una hoja, se corta entre renglones, nunca por la mitad de uno.
+// PDF a Word: pdf-inspector lee el texto con sus títulos, listas y tablas (las páginas que son fotos las lee
+// Tesseract) y la librería docx arma un .docx editable. No copia el diseño exacto ni las imágenes.
+
+const CONVERTIR = {
+    'word-pdf': {
+        titulo: 'Word a PDF',
+        descripcion: 'Elegí un archivo de Word (.docx) y lo paso a PDF con su diseño. El texto se puede seguir buscando y copiando. No se sube a ningún lado.',
+        acepta: '.docx,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword',
+        boton: 'Elegir un Word', icono: '#i-word',
+    },
+    'pdf-word': {
+        titulo: 'PDF a Word',
+        descripcion: 'Elegí un PDF y lo paso a Word para que lo puedas editar: con el texto, los títulos, las listas y las tablas. No copia el diseño exacto ni las imágenes. No se sube a ningún lado.',
+        acepta: 'application/pdf,.pdf',
+        boton: 'Elegir un PDF', icono: '#i-pdf',
+    },
+};
+let convModo = 'word-pdf';
+
+function estadoConv(t, error = false) {
+    $('convEstado').textContent = t;
+    $('convEstado').classList.toggle('error', error);
+}
+function barraConv(f) {
+    $('convProgreso').hidden = f === null;
+    if (f !== null) $('convBarra').style.width = `${Math.round(f * 100)}%`;
+    $('convTrabajandoBarra').style.width = `${Math.round((f || 0) * 100)}%`;
+}
+
+function prepararConvertir(m) {
+    convModo = m;
+    const c = CONVERTIR[m];
+    $('convTitulo').textContent = c.titulo;
+    $('convDescripcion').textContent = c.descripcion;
+    $('inConvertir').accept = c.acepta;
+    $('convElegirTexto').textContent = c.boton;
+    $('convIcono').setAttribute('href', c.icono);
+    $('convArchivo').hidden = true;
+    estadoConv('');
+    barraConv(null);
+}
+
+// docx-preview y la librería docx se llaman las dos «docx» al cargarse: cada una se guarda con su nombre
+let lectorWordListo = null, escritorWordListo = null;
+function cargarLectorWord() {
+    if (!lectorWordListo) {
+        lectorWordListo = (async () => {
+            if (!window.JSZip) await cargarScript('vendor/word/jszip.min.js');
+            const antes = window.docx;
+            await cargarScript('vendor/word/docx-preview.min.js');
+            const lector = window.docx;
+            window.docx = antes;
+            if (!window.html2canvas) await cargarScript('vendor/word/html2canvas.min.js');
+            return lector;
+        })();
+        lectorWordListo.catch(() => { lectorWordListo = null; });
+    }
+    return lectorWordListo;
+}
+function cargarEscritorWord() {
+    if (!escritorWordListo) {
+        escritorWordListo = (async () => {
+            const antes = window.docx;
+            await cargarScript('vendor/word/docx.js');
+            const escritor = window.docx;
+            window.docx = antes;
+            return escritor;
+        })();
+        escritorWordListo.catch(() => { escritorWordListo = null; });
+    }
+    return escritorWordListo;
+}
+
+async function convertir(archivo) {
+    $('convNombre').textContent = archivo.name;
+    $('convDetalle').textContent = tamano(archivo);
+    $('convArchivo').hidden = false;
+    $('convElegirTexto').textContent = 'Elegir otro archivo';
+    $('resultado').hidden = true;
+    try {
+        if (convModo === 'word-pdf') await wordAPdf(archivo); else await pdfAWord(archivo);
+    } catch (e) {
+        estadoConv(e.message || 'No pude convertirlo.', true);
+    } finally {
+        barraConv(null);
+        $('convTrabajando').hidden = true;
+        $('convLienzo').innerHTML = '';
+    }
+}
+
+// Los renglones, imágenes y filas de tabla de una sección, en px desde su borde de arriba: para no cortar ninguno
+function bloquesDe(seccion, arriba) {
+    const bloques = [];
+    const recorrer = document.createTreeWalker(seccion, NodeFilter.SHOW_TEXT);
+    const rango = document.createRange();
+    for (let n; (n = recorrer.nextNode());) {
+        if (!n.textContent.trim()) continue;
+        rango.selectNodeContents(n);
+        for (const r of rango.getClientRects()) if (r.height > 0) bloques.push([r.top - arriba, r.bottom - arriba]);
+    }
+    seccion.querySelectorAll('img, svg, tr').forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.height > 0) bloques.push([r.top - arriba, r.bottom - arriba]);
+    });
+    return bloques;
+}
+
+// Dónde cortar: lo más abajo posible sin partir un renglón (si no hay hueco razonable, donde toca)
+function puntoDeCorte(bloques, desde, hasta) {
+    let y = hasta;
+    for (let vueltas = 0; vueltas < 200; vueltas++) {
+        const cruza = bloques.find(([a, b]) => a < y - 0.5 && b > y + 0.5);
+        if (!cruza) return y;
+        y = cruza[0];
+        if (y <= desde + (hasta - desde) * 0.4) return hasta;
+    }
+    return hasta;
+}
+
+// Cada palabra visible de la sección con su caja (en px desde la sección), para la capa de texto invisible
+function palabrasDe(seccion, base) {
+    const palabras = [];
+    const recorrer = document.createTreeWalker(seccion, NodeFilter.SHOW_TEXT);
+    const rango = document.createRange();
+    for (let n; (n = recorrer.nextNode());) {
+        const t = n.textContent;
+        for (const m of t.matchAll(/\S+/g)) {
+            rango.setStart(n, m.index);
+            rango.setEnd(n, m.index + m[0].length);
+            const r = rango.getClientRects()[0];
+            if (!r || !r.width || !r.height) continue;
+            palabras.push({ text: m[0], x0: r.left - base.left, y0: r.top - base.top, x1: r.right - base.left, y1: r.bottom - base.top });
+        }
+    }
+    return palabras;
+}
+
+async function wordAPdf(archivo) {
+    if (/\.doc$/i.test(archivo.name)) {
+        throw new Error('Es un Word viejo (.doc). Abrilo en Word o en Google Docs, guardalo como .docx y probá de nuevo.');
+    }
+    estadoConv(lectorWordListo ? 'Leyendo el Word…' : 'Preparando el lector de Word (solo la primera vez)…');
+    const [lector] = await Promise.all([cargarLectorWord(), window.PDFLib ? null : cargarScript('vendor/pdf-lib.min.js')]);
+    $('convTrabajandoTitulo').textContent = 'Convirtiendo a PDF…';
+    $('convTrabajandoTexto').textContent = 'Esto puede tardar unos segundos por página.';
+    $('convTrabajando').hidden = false;
+    const lienzoW = $('convLienzo');
+    lienzoW.innerHTML = '<div></div><div></div>';
+    const [estilos, cuerpo] = lienzoW.children;
+    try {
+        await lector.renderAsync(archivo, cuerpo, estilos, {
+            className: 'docx', inWrapper: false, breakPages: true, ignoreLastRenderedPageBreak: false,
+            renderHeaders: true, renderFooters: true, renderFootnotes: true, renderEndnotes: true, useBase64URL: true,
+        });
+    } catch (e) {
+        throw new Error('No pude leer el Word: puede estar dañado o protegido con contraseña.');
+    }
+    await document.fonts.ready;
+    const secciones = [...cuerpo.querySelectorAll('section.docx')];
+    if (!secciones.length) throw new Error('El Word está vacío.');
+
+    // Primero se calculan todas las páginas, así la barra sabe cuántas son
+    const paginasW = [];
+    for (const sec of secciones) {
+        const base = sec.getBoundingClientRect();
+        const cs = getComputedStyle(sec);
+        const altoHoja = parseFloat(cs.minHeight) || base.width * 1.294;
+        const margenArriba = parseFloat(cs.paddingTop) || 0, margenAbajo = parseFloat(cs.paddingBottom) || 0;
+        const util = Math.max(100, altoHoja - margenArriba - margenAbajo);
+        if (base.height <= altoHoja + 2) {
+            paginasW.push({ sec, base, desde: 0, hasta: base.height, ponerEn: 0, altoHoja });
+            continue;
+        }
+        // Más larga que una hoja: se corta entre renglones; las hojas siguientes repiten el margen de arriba
+        const bloques = bloquesDe(sec, base.top);
+        const fin = base.height - margenAbajo;
+        let desde = 0, primera = true;
+        while (desde < fin - 1) {
+            const tope = primera ? margenArriba + util : desde + util;
+            const hasta = tope >= fin ? fin : puntoDeCorte(bloques, desde, tope);
+            paginasW.push({ sec, base, desde, hasta, ponerEn: primera ? 0 : margenArriba, altoHoja });
+            desde = hasta;
+            primera = false;
+        }
+    }
+
+    const P = PDFLib;
+    const pdf = await P.PDFDocument.create();
+    pdf.setTitle(archivo.name.replace(/\.docx$/i, ''));
+    pdf.setCreator('ScannerFree');
+    pdf.setProducer('ScannerFree');
+    const fuente = await pdf.embedFont(P.StandardFonts.Helvetica);
+    const letras = new Set(fuente.getCharacterSet());
+    const ESCALA = 2, PT = 0.75;   // 2 px de imagen por px de pantalla; 1 px = 0,75 pt
+    let mini = null;
+    const palabrasPorSeccion = new Map();
+    for (const [i, p] of paginasW.entries()) {
+        $('convTrabajandoTexto').textContent = `Página ${i + 1} de ${paginasW.length}…`;
+        barraConv(i / paginasW.length);
+        const ancho = p.base.width, alto = p.hasta - p.desde;
+        const foto = await html2canvas(p.sec, {
+            scale: ESCALA, backgroundColor: '#ffffff', logging: false, useCORS: false,
+            x: p.base.left + window.scrollX, y: p.base.top + window.scrollY + p.desde, width: ancho, height: alto,
+            windowWidth: Math.max(document.documentElement.clientWidth, Math.ceil(ancho) + 40),
+        });
+        // La hoja entera, en blanco, con el pedazo en su lugar
+        const hoja = lienzo(ancho * ESCALA, p.altoHoja * ESCALA);
+        const ctx = hoja.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, hoja.width, hoja.height);
+        ctx.drawImage(foto, 0, p.ponerEn * ESCALA);
+        if (!mini) mini = URL.createObjectURL(await aBlob(await dibujar(hoja, LADO_MINI), 0.8));
+        const img = await pdf.embedJpg(await (await aBlob(hoja, 0.8)).arrayBuffer());
+        const anchoPt = ancho * PT, altoPt = p.altoHoja * PT;
+        const pagina = pdf.addPage([anchoPt, altoPt]);
+        pagina.drawImage(img, { x: 0, y: 0, width: anchoPt, height: altoPt });
+        // El texto invisible: las palabras que caen en este pedazo, en el mismo lugar
+        if (!palabrasPorSeccion.has(p.sec)) palabrasPorSeccion.set(p.sec, palabrasDe(p.sec, p.base));
+        const aca = palabrasPorSeccion.get(p.sec).filter((w) => (w.y0 + w.y1) / 2 >= p.desde && (w.y0 + w.y1) / 2 < p.hasta);
+        const corrimiento = p.ponerEn - p.desde;
+        const bloquesTexto = [{ paragraphs: [{ lines: [{ words: aca.map((w) => ({ text: w.text, bbox: { x0: w.x0, y0: w.y0 + corrimiento, x1: w.x1, y1: w.y1 + corrimiento } })) }] }] }];
+        capaDeTextoEn(pagina, fuente, letras, bloquesTexto, (x, y) => [x * PT, altoPt - y * PT]);
+        await espera();
+    }
+    barraConv(1);
+    const blob = new Blob([await pdf.save()], { type: 'application/pdf' });
+    const n = paginasW.length;
+    estadoConv('');
+    await entregar(blob, nombreArchivo(archivo.name.replace(/\.docx$/i, '')),
+        `${n} ${n === 1 ? 'página' : 'páginas'}, ${tamano(blob)}. El texto se puede buscar y copiar.`, n, mini);
+    if (mini) setTimeout(() => URL.revokeObjectURL(mini), 5000);
+}
+
+// ── PDF a Word ──
+
+// Saca las marcas de Markdown que no queremos ver en el Word (\* → *)
+const sinEscapes = (t) => t.replace(/\\([\\`*_{}\[\]()#+\-.!|>])/g, '$1');
+
+// **negrita**, *itálica* y _itálica_ → partes de texto con formato
+function partesDeTexto(D, t) {
+    const partes = [];
+    const re = /(\*\*[^*]+\*\*|\*[^*\s][^*]*\*|_[^_\s][^_]*_)/g;
+    let ultimo = 0;
+    for (const m of t.matchAll(re)) {
+        if (m.index > ultimo) partes.push(new D.TextRun(sinEscapes(t.slice(ultimo, m.index))));
+        const s = m[0];
+        partes.push(s.startsWith('**') ? new D.TextRun({ text: sinEscapes(s.slice(2, -2)), bold: true }) : new D.TextRun({ text: sinEscapes(s.slice(1, -1)), italics: true }));
+        ultimo = m.index + s.length;
+    }
+    if (ultimo < t.length) partes.push(new D.TextRun(sinEscapes(t.slice(ultimo))));
+    return partes;
+}
+
+// El Markdown de cada página → párrafos, títulos, listas y tablas de Word (una página del PDF, una del Word)
+function armarWord(D, paginasMd, titulo) {
+    const hijos = [];
+    const TITULOS = [D.HeadingLevel.HEADING_1, D.HeadingLevel.HEADING_2, D.HeadingLevel.HEADING_3];
+    paginasMd.forEach((md, i) => {
+        let parrafo = [], tabla = null, primero = true;
+        const agregar = (p) => {
+            // Cada página del PDF empieza en una hoja nueva del Word
+            if (primero && i > 0) p.pageBreakBefore = true;
+            primero = false;
+            hijos.push(new D.Paragraph(p));
+        };
+        const cerrarParrafo = () => {
+            if (parrafo.length) agregar({ children: partesDeTexto(D, parrafo.join(' ')), spacing: { after: 160 } });
+            parrafo = [];
+        };
+        const cerrarTabla = () => {
+            if (!tabla) return;
+            const columnas = Math.max(...tabla.map((f) => f.length));
+            if (primero && i > 0) agregar({ children: [] });
+            hijos.push(new D.Table({
+                width: { size: 100, type: D.WidthType.PERCENTAGE },
+                rows: tabla.map((fila, k) => new D.TableRow({
+                    tableHeader: k === 0,
+                    children: Array.from({ length: columnas }, (_, c) => new D.TableCell({
+                        children: [new D.Paragraph({ children: partesDeTexto(D, fila[c] || '') })],
+                    })),
+                })),
+            }));
+            hijos.push(new D.Paragraph({ children: [] }));
+            tabla = null;
+        };
+        for (const linea of (md || '').split('\n')) {
+            const l = linea.trimEnd();
+            let m;
+            if (/^\s*\|/.test(l)) {
+                cerrarParrafo();
+                if (/^\s*\|?\s*:?-{3,}/.test(l)) continue;
+                (tabla = tabla || []).push(l.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim()));
+                continue;
+            }
+            cerrarTabla();
+            if (!l.trim() || /^!?\[(Image|Imagen)/i.test(l.trim()) || /^<!--/.test(l.trim())) { cerrarParrafo(); continue; }
+            if ((m = l.match(/^(#{1,6})\s+(.*)/))) {
+                cerrarParrafo();
+                agregar({ heading: TITULOS[Math.min(m[1].length, 3) - 1], children: partesDeTexto(D, m[2]) });
+            } else if ((m = l.match(/^\s*[-*•]\s+(.*)/))) {
+                cerrarParrafo();
+                agregar({ bullet: { level: 0 }, children: partesDeTexto(D, m[1]) });
+            } else if ((m = l.match(/^\s*(\d+)[.)]\s+(.*)/))) {
+                cerrarParrafo();
+                agregar({ children: partesDeTexto(D, `${m[1]}. ${m[2]}`), indent: { left: 360, hanging: 360 } });
+            } else {
+                parrafo.push(l.trim());
+            }
+        }
+        cerrarParrafo();
+        cerrarTabla();
+        if (primero && i > 0) agregar({ children: [] });
+    });
+    return new D.Document({
+        creator: 'ScannerFree', title: titulo,
+        styles: { default: { document: { run: { font: 'Calibri', size: 22 } } } },
+        sections: [{ children: hijos.length ? hijos : [new D.Paragraph('')] }],
+    });
+}
+
+async function pdfAWord(archivo) {
+    estadoConv(inspectorListo ? 'Leyendo el PDF…' : 'Preparando el lector de PDF (solo la primera vez)…');
+    const bytes = new Uint8Array(await archivo.arrayBuffer());
+    const [insp, D] = await Promise.all([cargarInspector(), cargarEscritorWord()]);
+    let res;
+    try {
+        res = insp.processPdf(bytes, { profile: 'fidelity', includePageMarkers: true });
+    } catch (e) {
+        throw new Error(/password|encrypt/i.test(String(e)) ? 'Este PDF tiene contraseña. Abrilo, guardalo sin contraseña y probá de nuevo.' : 'No pude leerlo: no parece un PDF.');
+    }
+    const n = res.pageCount;
+    const paginasMd = Array(n).fill('');
+    const partes = (res.markdown || '').split(/<!--\s*Page\s+(\d+)\s*-->/i);
+    if (partes.length > 1) {
+        for (let k = 1; k < partes.length; k += 2) paginasMd[Number(partes[k]) - 1] = partes[k + 1] || '';
+    } else if (n) {
+        paginasMd[0] = res.markdown || '';
+    }
+    // Las páginas sin texto: si traen texto invisible (de un escáner) se usa ese; si no, se reconoce con Tesseract
+    const faltan = [...new Set(res.pagesNeedingOcr || [])].filter((p) => p >= 1 && p <= n).sort((a, b) => a - b);
+    if (faltan.length) {
+        const vista = await (await cargarPdfjs()).getDocument({ data: bytes.slice(), isEvalSupported: false }).promise;
+        const sinTexto = [];
+        for (const p of faltan) {
+            const { items } = await (await vista.getPage(p)).getTextContent();
+            const t = items.map((it) => it.str + (it.hasEOL ? '\n' : '')).join('').trim();
+            if (t) paginasMd[p - 1] = t.replace(/\n(?=\S)/g, '\n\n'); else sinTexto.push(p);
+        }
+        for (const [k, p] of sinTexto.entries()) {
+            estadoConv(k === 0 && !ocrListo ? avisoOcr() : `Reconociendo el texto: página ${p} (${k + 1} de ${sinTexto.length})…`);
+            const { data } = await leerPagina(vista, p, (f) => barraConv((k + f) / sinTexto.length));
+            // Tesseract separa los párrafos con una línea en blanco; los renglones de un párrafo se juntan
+            paginasMd[p - 1] = (data.text || '').trim();
+        }
+        vista.destroy();
+    }
+    estadoConv('Armando el Word…');
+    const titulo = archivo.name.replace(/\.pdf$/i, '');
+    const blob = await D.Packer.toBlob(armarWord(D, paginasMd, titulo));
+    const word = new Blob([blob], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    estadoConv('');
+    await entregar(word, nombreArchivo(titulo, 'docx'),
+        `${n} ${n === 1 ? 'página' : 'páginas'} del PDF, ${tamano(word)}. Se puede abrir y editar con Word, Google Docs o WPS.`, null, null);
+}
+
 // ── Apoyar el proyecto ──
 
 async function abrirApoyar() {
@@ -1508,6 +1885,11 @@ function conectar() {
         paginas = ids.map((id) => paginas.find((p) => p.id === id)).filter(Boolean);
         pintarPaginas();
     });
+    document.querySelectorAll('[data-convertir]').forEach((b) => {
+        b.onclick = () => { prepararConvertir(b.dataset.convertir); $('inConvertir').click(); ir('convertir'); };
+    });
+    $('convElegir').onclick = () => $('inConvertir').click();
+    $('inConvertir').onchange = (ev) => { const [archivo] = ev.target.files; ev.target.value = ''; if (archivo) convertir(archivo); };
     $('btnApoyar').onclick = abrirApoyar;
     $('apoyarCopiar').onclick = copiarDireccion;
     $('apoyarCerrar').onclick = () => { $('dlgApoyar').hidden = true; };

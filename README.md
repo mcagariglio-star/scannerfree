@@ -13,7 +13,7 @@
   <a href="https://mcagariglio-star.github.io/scannerfree/"><b>Abrir ScannerFree</b></a>
 </p>
 
-Le sacás foto a cada hoja: la app encuentra los bordes, la endereza, la deja prolija y arma un PDF donde se puede buscar y copiar el texto. También une PDF, elimina páginas, pasa fotos a PDF y saca el texto de un PDF.
+Le sacás foto a cada hoja: la app encuentra los bordes, la endereza, la deja prolija y arma un PDF donde se puede buscar y copiar el texto. También une PDF, elimina páginas, pasa fotos a PDF, saca el texto de un PDF y convierte de Word a PDF y de PDF a Word.
 
 **Tus fotos no salen del celular.** Todo se procesa en el teléfono: no hay servidor, no hay registro, no hay seguimiento. La página ni siquiera tiene permiso para conectarse a otros sitios (lo bloquea su `Content-Security-Policy`).
 
@@ -48,6 +48,7 @@ Le sacás foto a cada hoja: la app encuentra los bordes, la endereza, la deja pr
 - Compartir directo (WhatsApp, mail, Drive…) o descargar
 - **Herramientas PDF**: unir varios PDF, eliminar páginas, girarlas y reordenarlas, y crear un PDF desde fotos. Las páginas se copian tal cual: el texto y la calidad no cambian
 - **Texto de un PDF**: «PDF a texto» saca el texto para copiarlo o compartirlo, y «Hacer buscable» le agrega el texto invisible a un PDF escaneado. pdf-inspector lee el texto que ya trae el PDF y las páginas que son fotos se reconocen con Tesseract
+- **Convertir**: «Word a PDF» pasa un .docx a PDF con su diseño (y el texto se puede buscar), y «PDF a Word» arma un Word editable con el texto, los títulos, las listas y las tablas (no copia el diseño exacto ni las imágenes)
 - **Mis documentos**: los PDF que hacés quedan guardados en el celular para verlos, compartirlos, renombrarlos, editarlos o borrarlos
 - Inicio con todo a mano y pasos guiados: tomá la foto, ajustá, guardá en PDF, ¡listo!
 - Se instala como app y anda sin internet
